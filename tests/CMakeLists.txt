@@ -18,5 +18,19 @@ target_compile_features(phu_dsp_tests PRIVATE cxx_std_17)
 
 target_link_libraries(phu_dsp_tests PRIVATE Catch2::Catch2WithMain)
 
+add_executable(phu_circuit_tests
+    CircuitLinearTests.cpp
+    ../src/DSP/Circuit/Circuit.cpp
+)
+
+target_include_directories(phu_circuit_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+target_compile_features(phu_circuit_tests PRIVATE cxx_std_17)
+
+target_link_libraries(phu_circuit_tests PRIVATE Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(phu_dsp_tests)
+catch_discover_tests(phu_circuit_tests)
