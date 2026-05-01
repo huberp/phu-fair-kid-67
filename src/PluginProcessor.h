@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_dsp/juce_dsp.h>
 
 class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
   public:
@@ -31,6 +32,21 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    /// Parameter IDs (stable string constants shared with the editor).
+    static constexpr const char* kParamInputTrimDb  = "inputTrimDb";
+    static constexpr const char* kParamOutputTrimDb = "outputTrimDb";
+    static constexpr const char* kParamMix          = "mix";
+    static constexpr const char* kParamOversampling = "oversampling";
+    static constexpr const char* kParamBypass       = "bypass";
+
+    juce::AudioProcessorValueTreeState apvts;
+
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
   private:
+    juce::dsp::Gain<float>       inputGain;
+    juce::dsp::Gain<float>       outputGain;
+    juce::dsp::DryWetMixer<float> dryWetMixer;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhuFairKid67AudioProcessor)
 };
