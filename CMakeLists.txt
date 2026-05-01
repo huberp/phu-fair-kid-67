@@ -8,45 +8,52 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# JUCE
-# Build JUCE extras/examples OFF for faster builds
-set(JUCE_BUILD_EXTRAS OFF CACHE BOOL "Build JUCE Extras")
-set(JUCE_BUILD_EXAMPLES OFF CACHE BOOL "Build JUCE Examples")
+option(PHU_BUILD_PLUGIN "Build the audio plugin (requires JUCE and platform audio SDKs)" ON)
 
-set(JUCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/JUCE" CACHE PATH "Path to JUCE root")
-if(NOT EXISTS "${JUCE_ROOT}/CMakeLists.txt")
-    message(FATAL_ERROR "JUCE submodule not found. Run: git submodule update --init --recursive")
+enable_testing()
+
+if(PHU_BUILD_PLUGIN)
+    # JUCE
+    # Build JUCE extras/examples OFF for faster builds
+    set(JUCE_BUILD_EXTRAS OFF CACHE BOOL "Build JUCE Extras")
+    set(JUCE_BUILD_EXAMPLES OFF CACHE BOOL "Build JUCE Examples")
+
+    set(JUCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/JUCE" CACHE PATH "Path to JUCE root")
+    if(NOT EXISTS "${JUCE_ROOT}/CMakeLists.txt")
+        message(FATAL_ERROR "JUCE submodule not found. Run: git submodule update --init --recursive")
+    endif()
+    add_subdirectory("${JUCE_ROOT}")
+
+    set(PHU_AUDIO_LIB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/phu-audio-lib" CACHE PATH "Path to PhuAudioLib root")
+    if(NOT EXISTS "${PHU_AUDIO_LIB_ROOT}/CMakeLists.txt")
+        message(FATAL_ERROR "PhuAudioLib submodule not found. Run: git submodule update --init --recursive")
+    endif()
+    add_subdirectory("${PHU_AUDIO_LIB_ROOT}")
+
+    # PhuNetworkLib's .cpp files include juce_core headers; link the JUCE
+    # target that the parent project already provides, with matching defines.
+    target_link_libraries(PhuNetworkLib PUBLIC juce::juce_core)
+    target_compile_definitions(PhuNetworkLib PUBLIC
+        JUCE_USE_CURL=0
+        JUCE_WEB_BROWSER=0
+    )
+    target_compile_definitions(PhuGLUtils PUBLIC
+        JUCE_USE_CURL=0
+        JUCE_WEB_BROWSER=0
+    )
+    # Static libs linked into a shared library (VST3) need PIC
+    set_target_properties(PhuNetworkLib PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    set_target_properties(PhuGLUtils PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+    # Plugin support library
+    add_library(PhuFairKidLib INTERFACE)
+    target_link_libraries(PhuFairKidLib INTERFACE
+        PhuAudioLib
+        PhuNetworkLib
+        PhuGLUtils
+    )
+
+    add_subdirectory(src)
 endif()
-add_subdirectory("${JUCE_ROOT}")
 
-set(PHU_AUDIO_LIB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/phu-audio-lib" CACHE PATH "Path to PhuAudioLib root")
-if(NOT EXISTS "${PHU_AUDIO_LIB_ROOT}/CMakeLists.txt")
-    message(FATAL_ERROR "PhuAudioLib submodule not found. Run: git submodule update --init --recursive")
-endif()
-add_subdirectory("${PHU_AUDIO_LIB_ROOT}")
-
-# PhuNetworkLib's .cpp files include juce_core headers; link the JUCE
-# target that the parent project already provides, with matching defines.
-target_link_libraries(PhuNetworkLib PUBLIC juce::juce_core)
-target_compile_definitions(PhuNetworkLib PUBLIC
-    JUCE_USE_CURL=0
-    JUCE_WEB_BROWSER=0
-)
-target_compile_definitions(PhuGLUtils PUBLIC
-    JUCE_USE_CURL=0
-    JUCE_WEB_BROWSER=0
-)
-# Static libs linked into a shared library (VST3) need PIC
-set_target_properties(PhuNetworkLib PROPERTIES POSITION_INDEPENDENT_CODE ON)
-set_target_properties(PhuGLUtils PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-# Plugin support library
-add_library(PhuFairKidLib INTERFACE)
-target_link_libraries(PhuFairKidLib INTERFACE
-    PhuAudioLib
-    PhuNetworkLib
-    PhuGLUtils
-)
-
-add_subdirectory(src)
 add_subdirectory(tests)

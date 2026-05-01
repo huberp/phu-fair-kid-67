@@ -1,10 +1,22 @@
-add_executable(test_placeholder test_placeholder.cpp)
+include(FetchContent)
 
-target_include_directories(test_placeholder PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../phu-audio-lib
+FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG        v3.8.1
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(Catch2)
+
+add_executable(phu_dsp_tests test_dsp.cpp)
+
+target_include_directories(phu_dsp_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
-target_compile_features(test_placeholder PRIVATE cxx_std_17)
+target_compile_features(phu_dsp_tests PRIVATE cxx_std_17)
 
-enable_testing()
-add_test(NAME placeholder_tests COMMAND test_placeholder)
+target_link_libraries(phu_dsp_tests PRIVATE Catch2::Catch2WithMain)
+
+include(Catch)
+catch_discover_tests(phu_dsp_tests)

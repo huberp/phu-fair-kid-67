@@ -20,6 +20,7 @@ target_sources(phu-fair-kid-67 PRIVATE
     PluginProcessor.h
     PluginEditor.cpp
     PluginEditor.h
+    DSP/DbConversion.h
     DSP/UnitScaling.h
 )
 
