@@ -1,0 +1,85 @@
+name: Create Sub-Issues from Epic
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Epic issue number to parse (default: 1)'
+        required: false
+        default: '1'
+
+jobs:
+  create-sub-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Parse epic and create sub-issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = parseInt(
+              '${{ github.event.inputs.issue_number }}' || '1'
+            );
+
+            // Fetch the epic issue body
+            const { data: epic } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+
+            const body = epic.body ?? '';
+
+            // Split on section headers: ### Issue <Letter> (PR <N>)
+            // Each captured group contains the content after the header
+            const headerRe = /^### Issue \w+ \(PR \d+\)/m;
+            const splitRe  = /(?=^### Issue \w+ \(PR \d+\))/m;
+            const parts    = body.split(splitRe).filter(p => headerRe.test(p));
+
+            if (parts.length === 0) {
+              core.setFailed(
+                `No "### Issue X (PR Y)" sections found in issue #${issueNumber}.`
+              );
+              return;
+            }
+
+            core.info(`Found ${parts.length} section(s) in issue #${issueNumber}.`);
+
+            const titleRe = /\*\*Title:\*\*\s*(.+)/;
+            // Body is a fenced ```md ... ``` block after **Body:**
+            const bodyRe  = /\*\*Body:\*\*\s*\n```(?:md)?\s*\n([\s\S]*?)\n```/;
+
+            const created = [];
+
+            for (const section of parts) {
+              const titleMatch = section.match(titleRe);
+              const bodyMatch  = section.match(bodyRe);
+
+              if (!titleMatch) {
+                core.warning(`Skipping section (no **Title:** found):\n${section.slice(0, 120)}`);
+                continue;
+              }
+
+              const title     = titleMatch[1].trim();
+              const issueBody = bodyMatch ? bodyMatch[1].trim() : '';
+
+              core.info(`Creating issue: ${title}`);
+
+              const { data: newIssue } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: issueBody,
+              });
+
+              core.info(`  → #${newIssue.number}: ${newIssue.html_url}`);
+              created.push(`- #${newIssue.number} — ${title}`);
+            }
+
+            // Print a summary
+            await core.summary
+              .addHeading(`Sub-issues created from #${issueNumber}`)
+              .addList(created)
+              .write();
