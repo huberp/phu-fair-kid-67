@@ -1,0 +1,5 @@
+if(EXISTS "/home/runner/work/phu-fair-kid-67/phu-fair-kid-67/build_test/tests/phu_circuit_tests-b12d07c_tests.cmake")
+  include("/home/runner/work/phu-fair-kid-67/phu-fair-kid-67/build_test/tests/phu_circuit_tests-b12d07c_tests.cmake")
+else()
+  add_test(phu_circuit_tests_NOT_BUILT-b12d07c phu_circuit_tests_NOT_BUILT-b12d07c)
+endif()

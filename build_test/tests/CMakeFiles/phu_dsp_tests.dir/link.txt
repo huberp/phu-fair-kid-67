@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/phu_dsp_tests.dir/link.d CMakeFiles/phu_dsp_tests.dir/test_dsp.cpp.o -o phu_dsp_tests  ../_deps/catch2-build/src/libCatch2Main.a ../_deps/catch2-build/src/libCatch2.a
