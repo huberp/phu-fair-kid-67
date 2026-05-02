@@ -46,7 +46,7 @@ static float measurePeakToPeak(Models::TubeStage& stage,
 
 // ── Stability: no NaN / Inf ───────────────────────────────────────────────────
 
-TEST_CASE("TubeStage: no NaN/Inf with moderate input", "[tuberstage][stability]") {
+TEST_CASE("TubeStage: no NaN/Inf with moderate input", "[tubestage][stability]") {
     Models::TubeStage stage;
     stage.prepare(44100.0);
 
@@ -59,7 +59,7 @@ TEST_CASE("TubeStage: no NaN/Inf with moderate input", "[tuberstage][stability]"
     }
 }
 
-TEST_CASE("TubeStage: no NaN/Inf with extreme input (±10 full-scale)", "[tuberstage][stability]") {
+TEST_CASE("TubeStage: no NaN/Inf with extreme input (±10 full-scale)", "[tubestage][stability]") {
     Models::TubeStage stage;
     stage.prepare(44100.0);
 
@@ -72,7 +72,7 @@ TEST_CASE("TubeStage: no NaN/Inf with extreme input (±10 full-scale)", "[tubers
     }
 }
 
-TEST_CASE("TubeStage: no NaN/Inf at silent input", "[tuberstage][stability]") {
+TEST_CASE("TubeStage: no NaN/Inf at silent input", "[tubestage][stability]") {
     Models::TubeStage stage;
     stage.prepare(44100.0);
 
@@ -84,7 +84,7 @@ TEST_CASE("TubeStage: no NaN/Inf at silent input", "[tuberstage][stability]") {
 
 // ── DC operating point ────────────────────────────────────────────────────────
 
-TEST_CASE("TubeStage: quiescent plate voltage is within supply rail", "[tuberstage][bias]") {
+TEST_CASE("TubeStage: quiescent plate voltage is within supply rail", "[tubestage][bias]") {
     // After warm-up the plate must sit between ground and B+.
     Models::TubeStageConfig cfg;
     Models::TubeStage stage(cfg);
@@ -101,7 +101,7 @@ TEST_CASE("TubeStage: quiescent plate voltage is within supply rail", "[tubersta
     REQUIRE(Vp < static_cast<float>(cfg.Vcc));
 }
 
-TEST_CASE("TubeStage: quiescent output is stable (converges)", "[tuberstage][bias]") {
+TEST_CASE("TubeStage: quiescent output is stable (converges)", "[tubestage][bias]") {
     // After sufficient warm-up, the output for a silent input should not drift.
     Models::TubeStage stage;
     stage.prepare(44100.0);
@@ -121,7 +121,7 @@ TEST_CASE("TubeStage: quiescent output is stable (converges)", "[tuberstage][bia
 
 // ── Low-level: approximately linear ──────────────────────────────────────────
 
-TEST_CASE("TubeStage: low-level gain is consistent (linear regime)", "[tuberstage][linear]") {
+TEST_CASE("TubeStage: low-level gain is consistent (linear regime)", "[tubestage][linear]") {
     // At small signal amplitudes the gain (output PTP / input PTP) should be
     // essentially constant — this is the definition of small-signal linearity.
     const float A1 = 0.001f;
@@ -144,7 +144,7 @@ TEST_CASE("TubeStage: low-level gain is consistent (linear regime)", "[tuberstag
     REQUIRE_THAT(gain2, Catch::Matchers::WithinRel(gain1, 0.05f));
 }
 
-TEST_CASE("TubeStage: low-level output is non-zero (stage has gain)", "[tuberstage][linear]") {
+TEST_CASE("TubeStage: low-level output is non-zero (stage has gain)", "[tubestage][linear]") {
     auto stage = makeWarmedStage();
     const float ptp = measurePeakToPeak(stage, 0.001f);
     INFO("PTP output (normalised sample units): " << ptp);
@@ -153,7 +153,7 @@ TEST_CASE("TubeStage: low-level output is non-zero (stage has gain)", "[tubersta
 
 // ── High-level: stable distortion and compression ────────────────────────────
 
-TEST_CASE("TubeStage: high drive shows gain compression vs low drive", "[tuberstage][distortion]") {
+TEST_CASE("TubeStage: high drive shows gain compression vs low drive", "[tubestage][distortion]") {
     // A nonlinear stage must exhibit less voltage gain at high drive than at
     // low drive (compression / saturation).
     const float A_low  = 0.001f; // ≈ 10 mV at grid — well within linear range
@@ -179,7 +179,7 @@ TEST_CASE("TubeStage: high drive shows gain compression vs low drive", "[tuberst
     REQUIRE(gain_low > gain_high * 1.15f);
 }
 
-TEST_CASE("TubeStage: high drive output remains bounded (no runaway)", "[tuberstage][distortion]") {
+TEST_CASE("TubeStage: high drive output remains bounded (no runaway)", "[tubestage][distortion]") {
     // At maximum drive the output plate voltage must stay within the supply rail.
     Models::TubeStageConfig cfg;
     auto stage = makeWarmedStage();
@@ -201,7 +201,7 @@ TEST_CASE("TubeStage: high drive output remains bounded (no runaway)", "[tuberst
 
 // ── Lifecycle: prepare / reset ────────────────────────────────────────────────
 
-TEST_CASE("TubeStage: reset restores initial conditions", "[tuberstage][lifecycle]") {
+TEST_CASE("TubeStage: reset restores initial conditions", "[tubestage][lifecycle]") {
     // Two stages processed identically after a reset must produce identical output.
     Models::TubeStage stage;
     stage.prepare(44100.0);
@@ -219,7 +219,7 @@ TEST_CASE("TubeStage: reset restores initial conditions", "[tuberstage][lifecycl
     }
 }
 
-TEST_CASE("TubeStage: different sample rates produce finite output", "[tuberstage][lifecycle]") {
+TEST_CASE("TubeStage: different sample rates produce finite output", "[tubestage][lifecycle]") {
     for (double sr : {8000.0, 44100.0, 48000.0, 96000.0, 192000.0}) {
         Models::TubeStage stage;
         stage.prepare(sr);
@@ -233,7 +233,7 @@ TEST_CASE("TubeStage: different sample rates produce finite output", "[tuberstag
 
 // ── Cathode bypass capacitor ──────────────────────────────────────────────────
 
-TEST_CASE("TubeStage: with cathode bypass cap, output is finite", "[tuberstage][bypass]") {
+TEST_CASE("TubeStage: with cathode bypass cap, output is finite", "[tubestage][bypass]") {
     Models::TubeStageConfig cfg;
     cfg.Ck = 47e-6; // 47 µF bypass cap
     Models::TubeStage stage(cfg);
@@ -249,7 +249,7 @@ TEST_CASE("TubeStage: with cathode bypass cap, output is finite", "[tuberstage][
 }
 
 TEST_CASE("TubeStage: with cathode bypass cap, high-freq gain >= no-bypass gain",
-          "[tuberstage][bypass]") {
+          "[tubestage][bypass]") {
     // Bypassing Rk with a cap boosts the mid/high-freq voltage gain.
     // After warm-up, a 1 kHz sine should produce a larger output swing with the
     // bypass cap than without it.
