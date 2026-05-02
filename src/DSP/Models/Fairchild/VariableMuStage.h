@@ -108,6 +108,10 @@ public:
     /// @param cv  Control voltage (V); non-negative values produce attenuation.
     void setCv(float cv) noexcept;
 
+    /// Change the Newton-Raphson iteration policy at runtime.
+    /// Takes effect on the next processSample() call; no prepare() needed.
+    void setNRConfig(Circuit::Nonlinear::NRConfig cfg) noexcept;
+
     /// Return the current (clamped) CV bias in use (V).
     [[nodiscard]] float cv() const noexcept { return static_cast<float>(cvBias_); }
 

@@ -37,6 +37,15 @@ struct Fairchild670Meters {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Processing quality preset: controls the Newton-Raphson iteration budget
+/// used by the variable-mu gain stages.
+enum class ProcessingQuality {
+    Draft, ///< Reduced NR iterations (faster CPU, slightly less accurate).
+    High,  ///< Full NR iterations (default accuracy).
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Configuration for the Fairchild 670 stereo core.
 struct Fairchild670CoreConfig {
     /// Stereo link mode.
@@ -87,6 +96,14 @@ public:
     void setEnvelopeStrategy(LinkedEnvelopeStrategy strategy) noexcept {
         cfg_.envelopeStrategy = strategy;
     }
+
+    /// Adjust the NR iteration budget on both variable-mu gain stages.
+    ///
+    /// Draft mode reduces the maximum iteration count to 8, saving CPU at
+    /// the cost of slightly less accurate nonlinear modelling.  High mode
+    /// restores the default 20-iteration budget.  The change takes effect
+    /// on the next processStereo() call; no prepare() is required.
+    void setQuality(ProcessingQuality quality) noexcept;
 
     /// Change the sidechain timing preset and recompute detector coefficients.
     /// The timing state of both detectors is preserved (attack/release smoothing

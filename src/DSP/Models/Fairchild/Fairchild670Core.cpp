@@ -40,6 +40,16 @@ void Fairchild670Core::reset() noexcept
     meters_.cvR = 0.0f;
 }
 
+void Fairchild670Core::setQuality(ProcessingQuality quality) noexcept
+{
+    // Build an NR config derived from the stage's original template, but with
+    // the iteration limit adjusted for the requested quality level.
+    Circuit::Nonlinear::NRConfig nr = cfg_.stageCfg.nr;
+    nr.maxIterations = (quality == ProcessingQuality::Draft) ? 8 : 20;
+    stageL_.setNRConfig(nr);
+    stageR_.setNRConfig(nr);
+}
+
 void Fairchild670Core::setTimingPosition(Sidechain::TimingPosition pos) noexcept
 {
     cfg_.detectorCfg.preset = pos;
