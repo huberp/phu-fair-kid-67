@@ -56,6 +56,14 @@ class NRPolicy {
 public:
     explicit NRPolicy(NRConfig cfg = {}) noexcept : cfg_(cfg) {}
 
+    /// Replace the iteration policy configuration at runtime.
+    /// Safe to call between samples; the new settings take effect on the
+    /// next solve() call.
+    void setConfig(NRConfig cfg) noexcept { cfg_ = std::move(cfg); }
+
+    /// Read-only access to the current iteration policy configuration.
+    [[nodiscard]] const NRConfig& config() const noexcept { return cfg_; }
+
     /// Run the NR iteration loop.
     ///
     /// @param x     On entry: initial guess (typically the previous sample's

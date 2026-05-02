@@ -33,6 +33,8 @@ target_sources(phu-fair-kid-67 PRIVATE
     DSP/Models/Sidechain/RectifierDetector.h
     DSP/Models/Sidechain/TimingNetwork.cpp
     DSP/Models/Sidechain/TimingNetwork.h
+    DSP/Utils/OversamplingChain.cpp
+    DSP/Utils/OversamplingChain.h
 )
 
 target_compile_definitions(phu-fair-kid-67 PUBLIC

@@ -401,3 +401,105 @@ TEST_CASE("Fairchild670Core: setTimingPosition produces finite output",
         REQUIRE(std::isfinite(outR));
     }
 }
+
+// ── Quality mode ─────────────────────────────────────────────────────────────
+
+TEST_CASE("Fairchild670Core: setQuality — output remains finite in Draft mode",
+          "[670core][quality]")
+{
+    Models::Fairchild670Core core;
+    core.prepare(44100.0);
+    core.setQuality(Models::ProcessingQuality::Draft);
+
+    float outL, outR;
+    for (float v : {0.0f, 0.1f, -0.1f, 0.5f, -0.5f, 1.0f, -1.0f}) {
+        for (int i = 0; i < 20; ++i) {
+            core.processStereo(v, -v, outL, outR);
+            INFO("Draft quality, input=" << v << " iter=" << i);
+            REQUIRE(std::isfinite(outL));
+            REQUIRE(std::isfinite(outR));
+        }
+    }
+}
+
+TEST_CASE("Fairchild670Core: setQuality — output remains finite in High mode",
+          "[670core][quality]")
+{
+    Models::Fairchild670Core core;
+    core.prepare(44100.0);
+    core.setQuality(Models::ProcessingQuality::High);
+
+    float outL, outR;
+    for (float v : {0.0f, 0.2f, -0.2f, 0.8f, -0.8f, 1.0f, -1.0f}) {
+        for (int i = 0; i < 20; ++i) {
+            core.processStereo(v, -v, outL, outR);
+            INFO("High quality, input=" << v << " iter=" << i);
+            REQUIRE(std::isfinite(outL));
+            REQUIRE(std::isfinite(outR));
+        }
+    }
+}
+
+TEST_CASE("Fairchild670Core: setQuality — switching between Draft and High is stable",
+          "[670core][quality]")
+{
+    Models::Fairchild670Core core;
+    core.prepare(44100.0);
+
+    float outL, outR;
+    // Warm up in High mode.
+    core.setQuality(Models::ProcessingQuality::High);
+    for (int i = 0; i < 200; ++i)
+        core.processStereo(0.4f, 0.4f, outL, outR);
+
+    // Switch to Draft mid-stream.
+    core.setQuality(Models::ProcessingQuality::Draft);
+    for (int i = 0; i < 100; ++i) {
+        core.processStereo(0.4f, 0.4f, outL, outR);
+        INFO("iter=" << i);
+        REQUIRE(std::isfinite(outL));
+        REQUIRE(std::isfinite(outR));
+    }
+
+    // Switch back to High.
+    core.setQuality(Models::ProcessingQuality::High);
+    for (int i = 0; i < 100; ++i) {
+        core.processStereo(0.4f, 0.4f, outL, outR);
+        INFO("iter=" << i);
+        REQUIRE(std::isfinite(outL));
+        REQUIRE(std::isfinite(outR));
+    }
+}
+
+TEST_CASE("Fairchild670Core: Draft mode produces similar (not wildly different) output to High",
+          "[670core][quality]")
+{
+    // Both quality modes should converge to comparable results for moderate
+    // input levels — the draft mode uses fewer NR iterations but starts from
+    // the same warm initial point, so the error should be small.
+    constexpr double sr = 44100.0;
+    constexpr int    N  = 500;
+
+    Models::Fairchild670Core coreHigh;
+    coreHigh.prepare(sr);
+    coreHigh.setQuality(Models::ProcessingQuality::High);
+
+    Models::Fairchild670Core coreDraft;
+    coreDraft.prepare(sr);
+    coreDraft.setQuality(Models::ProcessingQuality::Draft);
+
+    float outLH, outRH, outLD, outRD;
+    for (int i = 0; i < N; ++i) {
+        const float in = 0.3f * std::sin(
+            2.0f * static_cast<float>(M_PI) * 440.0f
+                * static_cast<float>(i) / static_cast<float>(sr));
+        coreHigh.processStereo(in, in, outLH, outRH);
+        coreDraft.processStereo(in, in, outLD, outRD);
+    }
+
+    // Draft output must be within a loose tolerance of High output.
+    // (Exact equality is not expected — just no wildly divergent values.)
+    REQUIRE(std::isfinite(outLH));
+    REQUIRE(std::isfinite(outLD));
+    REQUIRE(std::abs(outLH - outLD) < 0.5f);
+}

@@ -3,7 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
-#include "DSP/Models/Fairchild/Fairchild670Core.h"
+#include "DSP/Utils/OversamplingChain.h"
 
 class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
   public:
@@ -39,6 +39,7 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     static constexpr const char* kParamOutputTrimDb    = "outputTrimDb";
     static constexpr const char* kParamMix             = "mix";
     static constexpr const char* kParamOversampling    = "oversampling";
+    static constexpr const char* kParamQuality         = "quality";
     static constexpr const char* kParamBypass          = "bypass";
     static constexpr const char* kParamLinkMode        = "linkMode";
     static constexpr const char* kParamTimingPosition  = "timingPosition";
@@ -50,7 +51,7 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     /// Read-only access to the latest meter snapshot (safe to call from the
     /// message/editor thread; the values are written atomically each processBlock).
     [[nodiscard]] Models::Fairchild670Meters meterSnapshot() const noexcept {
-        return core_.meters();
+        return oversamplingChain_.core().meters();
     }
 
   private:
@@ -58,10 +59,14 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     juce::dsp::Gain<float>        outputGain;
     juce::dsp::DryWetMixer<float> dryWetMixer;
 
-    Models::Fairchild670Core core_;
+    DSP::OversamplingChain oversamplingChain_;
 
     /// Cached timing position to avoid reconstructing detectors every buffer.
-    int lastTimingPosition_ = -1;
+    int lastTimingPosition_   = -1;
+    /// Cached oversampling order to detect changes between processBlock calls.
+    int lastOversamplingOrder_ = -1;
+    /// Cached quality choice to detect changes between processBlock calls.
+    int lastQualityChoice_     = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhuFairKid67AudioProcessor)
 };

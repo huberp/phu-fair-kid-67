@@ -59,6 +59,11 @@ void VariableMuStage::setCv(float cv) noexcept
     cvBias_ = std::clamp(static_cast<double>(cv), 0.0, cfg_.cvMaxV);
 }
 
+void VariableMuStage::setNRConfig(Circuit::Nonlinear::NRConfig cfg) noexcept
+{
+    nr_.setConfig(std::move(cfg));
+}
+
 // ── Per-sample processing ─────────────────────────────────────────────────────
 
 float VariableMuStage::processSample(float sample) noexcept

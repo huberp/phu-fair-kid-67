@@ -31,6 +31,10 @@ PhuFairKid67AudioProcessor::createParameterLayout() {
         juce::ParameterID{kParamOversampling, 1}, "Oversampling",
         juce::StringArray{"1x", "2x", "4x", "8x"}, 0));
 
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{kParamQuality, 1}, "Quality",
+        juce::StringArray{"Draft", "High"}, 1));
+
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{kParamBypass, 1}, "Bypass", false));
 
@@ -74,8 +78,24 @@ void PhuFairKid67AudioProcessor::prepareToPlay(double sampleRate, int samplesPer
 
     dryWetMixer.prepare(spec);
 
-    core_.prepare(sampleRate);
-    lastTimingPosition_ = -1; // force reconfiguration on next processBlock
+    // Apply oversampling and quality settings from parameters.
+    const int osOrder =
+        static_cast<int>(apvts.getRawParameterValue(kParamOversampling)->load());
+    const int qualityChoice =
+        static_cast<int>(apvts.getRawParameterValue(kParamQuality)->load());
+
+    oversamplingChain_.setOversamplingOrder(osOrder);
+    oversamplingChain_.setQuality(qualityChoice == 0
+                                      ? Models::ProcessingQuality::Draft
+                                      : Models::ProcessingQuality::High);
+    oversamplingChain_.prepare(sampleRate, samplesPerBlock);
+
+    // Report oversampling filter latency to the host so it can compensate.
+    setLatencySamples(oversamplingChain_.getLatencySamples());
+
+    lastTimingPosition_    = -1; // force reconfiguration on next processBlock
+    lastOversamplingOrder_ = osOrder;
+    lastQualityChoice_     = qualityChoice;
 }
 
 void PhuFairKid67AudioProcessor::releaseResources() {}
@@ -104,21 +124,49 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         apvts.getRawParameterValue(kParamOutputTrimDb)->load());
     dryWetMixer.setWetMixProportion(mixValue);
 
+    // ── Detect oversampling / quality parameter changes ───────────────────────
+    //
+    // A change triggers a safe reinit.  This involves memory allocation
+    // (juce::dsp::Oversampling::initProcessing) and a momentary glitch, which
+    // is acceptable — the host is expected to mute during transport operations
+    // that change DSP configuration.  A short output ramp from the
+    // outputGain smoothed ramp mitigates the click on the wet path.
+    {
+        const int currentOsOrder =
+            static_cast<int>(apvts.getRawParameterValue(kParamOversampling)->load());
+        const int currentQuality =
+            static_cast<int>(apvts.getRawParameterValue(kParamQuality)->load());
+
+        if (currentOsOrder != lastOversamplingOrder_) {
+            lastOversamplingOrder_ = currentOsOrder;
+            oversamplingChain_.setOversamplingOrder(currentOsOrder);
+            oversamplingChain_.prepare(getSampleRate(), buffer.getNumSamples());
+            setLatencySamples(oversamplingChain_.getLatencySamples());
+        }
+
+        if (currentQuality != lastQualityChoice_) {
+            lastQualityChoice_ = currentQuality;
+            oversamplingChain_.setQuality(currentQuality == 0
+                                              ? Models::ProcessingQuality::Draft
+                                              : Models::ProcessingQuality::High);
+        }
+    }
+
     // Update link mode and timing position from parameters.
     {
         const int linkChoice =
             static_cast<int>(apvts.getRawParameterValue(kParamLinkMode)->load());
         switch (linkChoice) {
             case 0:
-                core_.setLinkMode(Models::LinkMode::Independent);
+                oversamplingChain_.core().setLinkMode(Models::LinkMode::Independent);
                 break;
             case 1:
-                core_.setLinkMode(Models::LinkMode::Linked);
-                core_.setEnvelopeStrategy(Models::LinkedEnvelopeStrategy::Max);
+                oversamplingChain_.core().setLinkMode(Models::LinkMode::Linked);
+                oversamplingChain_.core().setEnvelopeStrategy(Models::LinkedEnvelopeStrategy::Max);
                 break;
             default: // 2 — Linked Avg
-                core_.setLinkMode(Models::LinkMode::Linked);
-                core_.setEnvelopeStrategy(Models::LinkedEnvelopeStrategy::Average);
+                oversamplingChain_.core().setLinkMode(Models::LinkMode::Linked);
+                oversamplingChain_.core().setEnvelopeStrategy(Models::LinkedEnvelopeStrategy::Average);
                 break;
         }
 
@@ -126,7 +174,7 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             static_cast<int>(apvts.getRawParameterValue(kParamTimingPosition)->load());
         if (timingChoice != lastTimingPosition_) {
             lastTimingPosition_ = timingChoice;
-            core_.setTimingPosition(
+            oversamplingChain_.core().setTimingPosition(
                 static_cast<Models::Sidechain::TimingPosition>(timingChoice));
         }
     }
@@ -137,27 +185,9 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     juce::dsp::ProcessContextReplacing<float> context(block);
     inputGain.process(context);
 
-    // Process through the Fairchild 670 core (sample by sample).
-    core_.resetPeakMeters();
-    const int numSamples = buffer.getNumSamples();
-    const int numCh      = buffer.getNumChannels();
-    if (numCh >= 2) {
-        float* chL = buffer.getWritePointer(0);
-        float* chR = buffer.getWritePointer(1);
-        float  outL, outR;
-        for (int n = 0; n < numSamples; ++n) {
-            core_.processStereo(chL[n], chR[n], outL, outR);
-            chL[n] = outL;
-            chR[n] = outR;
-        }
-    } else if (numCh == 1) {
-        float* ch = buffer.getWritePointer(0);
-        float  outL, outR;
-        for (int n = 0; n < numSamples; ++n) {
-            core_.processStereo(ch[n], ch[n], outL, outR);
-            ch[n] = (outL + outR) * 0.5f;
-        }
-    }
+    // Process through the Fairchild 670 core with optional oversampling.
+    oversamplingChain_.core().resetPeakMeters();
+    oversamplingChain_.process(buffer);
 
     outputGain.process(context);
 
