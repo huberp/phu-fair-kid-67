@@ -99,6 +99,23 @@ target_compile_features(phu_variable_mu_tests PRIVATE cxx_std_17)
 
 target_link_libraries(phu_variable_mu_tests PRIVATE Catch2::Catch2WithMain)
 
+add_executable(phu_fairchild670core_tests
+    Fairchild670CoreTests.cpp
+    ../src/DSP/Models/Fairchild/Fairchild670Core.cpp
+    ../src/DSP/Models/Fairchild/VariableMuStage.cpp
+    ../src/DSP/Models/Sidechain/RectifierDetector.cpp
+    ../src/DSP/Models/Sidechain/TimingNetwork.cpp
+    ../src/DSP/Circuit/Nonlinear/TriodeKoren.cpp
+)
+
+target_include_directories(phu_fairchild670core_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+target_compile_features(phu_fairchild670core_tests PRIVATE cxx_std_17)
+
+target_link_libraries(phu_fairchild670core_tests PRIVATE Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(phu_dsp_tests)
 catch_discover_tests(phu_circuit_tests)
@@ -107,3 +124,4 @@ catch_discover_tests(phu_triode_koren_tests)
 catch_discover_tests(phu_tube_stage_tests)
 catch_discover_tests(phu_detector_tests)
 catch_discover_tests(phu_variable_mu_tests)
+catch_discover_tests(phu_fairchild670core_tests)

@@ -22,6 +22,17 @@ target_sources(phu-fair-kid-67 PRIVATE
     PluginEditor.h
     DSP/DbConversion.h
     DSP/UnitScaling.h
+    DSP/Circuit/Circuit.cpp
+    DSP/Circuit/Nonlinear/NR.cpp
+    DSP/Circuit/Nonlinear/TriodeKoren.cpp
+    DSP/Models/Fairchild/Fairchild670Core.cpp
+    DSP/Models/Fairchild/Fairchild670Core.h
+    DSP/Models/Fairchild/VariableMuStage.cpp
+    DSP/Models/Fairchild/VariableMuStage.h
+    DSP/Models/Sidechain/RectifierDetector.cpp
+    DSP/Models/Sidechain/RectifierDetector.h
+    DSP/Models/Sidechain/TimingNetwork.cpp
+    DSP/Models/Sidechain/TimingNetwork.h
 )
 
 target_compile_definitions(phu-fair-kid-67 PUBLIC
