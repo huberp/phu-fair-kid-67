@@ -34,6 +34,14 @@ PhuFairKid67AudioProcessor::createParameterLayout() {
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{kParamBypass, 1}, "Bypass", false));
 
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{kParamLinkMode, 1}, "Link Mode",
+        juce::StringArray{"Independent", "Linked Max", "Linked Avg"}, 1));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{kParamTimingPosition, 1}, "Timing",
+        juce::StringArray{"1", "2", "3", "4", "5", "6"}, 0));
+
     return layout;
 }
 
@@ -65,6 +73,9 @@ void PhuFairKid67AudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     outputGain.setRampDurationSeconds(0.005);
 
     dryWetMixer.prepare(spec);
+
+    core_.prepare(sampleRate);
+    lastTimingPosition_ = -1; // force reconfiguration on next processBlock
 }
 
 void PhuFairKid67AudioProcessor::releaseResources() {}
@@ -93,12 +104,61 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         apvts.getRawParameterValue(kParamOutputTrimDb)->load());
     dryWetMixer.setWetMixProportion(mixValue);
 
+    // Update link mode and timing position from parameters.
+    {
+        const int linkChoice =
+            static_cast<int>(apvts.getRawParameterValue(kParamLinkMode)->load());
+        switch (linkChoice) {
+            case 0:
+                core_.setLinkMode(Models::LinkMode::Independent);
+                break;
+            case 1:
+                core_.setLinkMode(Models::LinkMode::Linked);
+                core_.setEnvelopeStrategy(Models::LinkedEnvelopeStrategy::Max);
+                break;
+            default: // 2 — Linked Avg
+                core_.setLinkMode(Models::LinkMode::Linked);
+                core_.setEnvelopeStrategy(Models::LinkedEnvelopeStrategy::Average);
+                break;
+        }
+
+        const int timingChoice =
+            static_cast<int>(apvts.getRawParameterValue(kParamTimingPosition)->load());
+        if (timingChoice != lastTimingPosition_) {
+            lastTimingPosition_ = timingChoice;
+            core_.setTimingPosition(
+                static_cast<Models::Sidechain::TimingPosition>(timingChoice));
+        }
+    }
+
     juce::dsp::AudioBlock<float> block(buffer);
     dryWetMixer.pushDrySamples(block);
 
     juce::dsp::ProcessContextReplacing<float> context(block);
     inputGain.process(context);
-    // DSP placeholder — analog model will be inserted here
+
+    // Process through the Fairchild 670 core (sample by sample).
+    core_.resetPeakMeters();
+    const int numSamples = buffer.getNumSamples();
+    const int numCh      = buffer.getNumChannels();
+    if (numCh >= 2) {
+        float* chL = buffer.getWritePointer(0);
+        float* chR = buffer.getWritePointer(1);
+        float  outL, outR;
+        for (int n = 0; n < numSamples; ++n) {
+            core_.processStereo(chL[n], chR[n], outL, outR);
+            chL[n] = outL;
+            chR[n] = outR;
+        }
+    } else if (numCh == 1) {
+        float* ch = buffer.getWritePointer(0);
+        float  outL, outR;
+        for (int n = 0; n < numSamples; ++n) {
+            core_.processStereo(ch[n], ch[n], outL, outR);
+            ch[n] = (outL + outR) * 0.5f;
+        }
+    }
+
     outputGain.process(context);
 
     dryWetMixer.mixWetSamples(block);

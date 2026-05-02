@@ -3,6 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
+#include "DSP/Models/Fairchild/Fairchild670Core.h"
+
 class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
   public:
     PhuFairKid67AudioProcessor();
@@ -33,20 +35,33 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     void setStateInformation(const void* data, int sizeInBytes) override;
 
     /// Parameter IDs (stable string constants shared with the editor).
-    static constexpr const char* kParamInputTrimDb  = "inputTrimDb";
-    static constexpr const char* kParamOutputTrimDb = "outputTrimDb";
-    static constexpr const char* kParamMix          = "mix";
-    static constexpr const char* kParamOversampling = "oversampling";
-    static constexpr const char* kParamBypass       = "bypass";
+    static constexpr const char* kParamInputTrimDb     = "inputTrimDb";
+    static constexpr const char* kParamOutputTrimDb    = "outputTrimDb";
+    static constexpr const char* kParamMix             = "mix";
+    static constexpr const char* kParamOversampling    = "oversampling";
+    static constexpr const char* kParamBypass          = "bypass";
+    static constexpr const char* kParamLinkMode        = "linkMode";
+    static constexpr const char* kParamTimingPosition  = "timingPosition";
 
     juce::AudioProcessorValueTreeState apvts;
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
+    /// Read-only access to the latest meter snapshot (safe to call from the
+    /// message/editor thread; the values are written atomically each processBlock).
+    [[nodiscard]] Models::Fairchild670Meters meterSnapshot() const noexcept {
+        return core_.meters();
+    }
+
   private:
-    juce::dsp::Gain<float>       inputGain;
-    juce::dsp::Gain<float>       outputGain;
+    juce::dsp::Gain<float>        inputGain;
+    juce::dsp::Gain<float>        outputGain;
     juce::dsp::DryWetMixer<float> dryWetMixer;
+
+    Models::Fairchild670Core core_;
+
+    /// Cached timing position to avoid reconstructing detectors every buffer.
+    int lastTimingPosition_ = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhuFairKid67AudioProcessor)
 };
