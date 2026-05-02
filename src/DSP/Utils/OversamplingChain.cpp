@@ -1,7 +1,5 @@
 #include "OversamplingChain.h"
 
-#include <cassert>
-
 namespace DSP {
 
 // ── Constructor ───────────────────────────────────────────────────────────────
@@ -76,14 +74,14 @@ int OversamplingChain::getLatencySamples() const noexcept
 {
     if (oversampler_ == nullptr)
         return 0;
-    return static_cast<int>(std::round(oversampler_->getLatencyInSamples()));
+    return static_cast<int>(oversampler_->getLatencyInSamples());
 }
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
 void OversamplingChain::setOversamplingOrder(int order)
 {
-    assert(order >= 0 && order <= 3);
+    jassert(order >= 0 && order <= 3); // valid: 0=1x, 1=2x, 2=4x, 3=8x
     if (order_ == order)
         return;
 

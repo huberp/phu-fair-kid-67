@@ -495,11 +495,11 @@ TEST_CASE("Fairchild670Core: Draft mode produces similar (not wildly different) 
                 * static_cast<float>(i) / static_cast<float>(sr));
         coreHigh.processStereo(in, in, outLH, outRH);
         coreDraft.processStereo(in, in, outLD, outRD);
-    }
 
-    // Draft output must be within a loose tolerance of High output.
-    // (Exact equality is not expected — just no wildly divergent values.)
-    REQUIRE(std::isfinite(outLH));
-    REQUIRE(std::isfinite(outLD));
-    REQUIRE(std::abs(outLH - outLD) < 0.5f);
+        // All intermediate outputs must be finite throughout the block.
+        INFO("iter=" << i);
+        REQUIRE(std::isfinite(outLH));
+        REQUIRE(std::isfinite(outLD));
+        REQUIRE(std::abs(outLH - outLD) < 0.5f);
+    }
 }
