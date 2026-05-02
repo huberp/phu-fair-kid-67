@@ -1,5 +1,7 @@
 #include "Fairchild670Core.h"
 
+#include "../../UnitScaling.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -56,8 +58,8 @@ void Fairchild670Core::setTimingPosition(Sidechain::TimingPosition pos) noexcept
     // samples that produce that level.  This avoids a sudden CV jump.
     // We use the saved CV directly via a short steady-state feed (one sample
     // is enough for a constant level since the detector is deterministic).
-    (void)detectorL_.processSample(savedCvL / 10.0f); // 10 V full-scale
-    (void)detectorR_.processSample(savedCvR / 10.0f);
+    (void)detectorL_.processSample(savedCvL / UnitScaling::kVoltsPerSample);
+    (void)detectorR_.processSample(savedCvR / UnitScaling::kVoltsPerSample);
 }
 
 // ── Per-sample processing ─────────────────────────────────────────────────────

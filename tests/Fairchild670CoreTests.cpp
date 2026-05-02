@@ -23,6 +23,15 @@ static Models::Fairchild670Core makeWarmedCore(Models::Fairchild670CoreConfig cf
     return core;
 }
 
+/// Compute a sine sample at sample index `i` for the given amplitude, frequency,
+/// and sample rate.
+static float sineAt(float amplitude, int i, double freqHz, double sampleRate)
+{
+    return amplitude * std::sin(
+        2.0f * static_cast<float>(M_PI) * static_cast<float>(freqHz)
+            * static_cast<float>(i) / static_cast<float>(sampleRate));
+}
+
 // ── Stability ─────────────────────────────────────────────────────────────────
 
 TEST_CASE("Fairchild670Core: stereo output is always finite", "[670core][stability]")
@@ -180,8 +189,8 @@ TEST_CASE("Fairchild670Core: linked/max — cv equals max(cvL, cvR)",
 
     float outL, outR;
     for (int i = 0; i < N; ++i) {
-        const float inL = 0.8f * std::sin(2.0f * static_cast<float>(M_PI) * 100.0f * static_cast<float>(i) / static_cast<float>(sr));
-        const float inR = 0.2f * std::sin(2.0f * static_cast<float>(M_PI) * 100.0f * static_cast<float>(i) / static_cast<float>(sr));
+        const float inL = sineAt(0.8f, i, 100.0, sr);
+        const float inR = sineAt(0.2f, i, 100.0, sr);
 
         coreRef.processStereo(inL, inR, outL, outR);
         coreMax.processStereo(inL, inR, outL, outR);
@@ -215,8 +224,8 @@ TEST_CASE("Fairchild670Core: linked/avg — both channels share the average CV",
 
     float outL, outR;
     for (int i = 0; i < N; ++i) {
-        const float inL = 0.7f * std::sin(2.0f * static_cast<float>(M_PI) * 100.0f * static_cast<float>(i) / static_cast<float>(sr));
-        const float inR = 0.3f * std::sin(2.0f * static_cast<float>(M_PI) * 100.0f * static_cast<float>(i) / static_cast<float>(sr));
+        const float inL = sineAt(0.7f, i, 100.0, sr);
+        const float inR = sineAt(0.3f, i, 100.0, sr);
         coreAvg.processStereo(inL, inR, outL, outR);
 
         // L and R must always receive the same CV in any linked mode.
@@ -247,9 +256,8 @@ TEST_CASE("Fairchild670Core: linked/avg CV is strictly between independent L and
     // Warm up both cores with the same asymmetric inputs.
     float outL, outR;
     for (int i = 0; i < 3000; ++i) {
-        const float t = static_cast<float>(i) / static_cast<float>(sr);
-        const float inL = 0.8f * std::sin(2.0f * static_cast<float>(M_PI) * 100.0f * t);
-        const float inR = 0.1f * std::sin(2.0f * static_cast<float>(M_PI) * 100.0f * t);
+        const float inL = sineAt(0.8f, i, 100.0, sr);
+        const float inR = sineAt(0.1f, i, 100.0, sr);
         coreIndep.processStereo(inL, inR, outL, outR);
         coreAvg.processStereo(inL, inR, outL, outR);
     }
