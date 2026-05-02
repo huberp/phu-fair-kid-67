@@ -69,6 +69,8 @@ target_include_directories(phu_tube_stage_tests PRIVATE
 
 target_compile_features(phu_tube_stage_tests PRIVATE cxx_std_17)
 
+target_compile_definitions(phu_tube_stage_tests PRIVATE _USE_MATH_DEFINES)
+
 target_link_libraries(phu_tube_stage_tests PRIVATE Catch2::Catch2WithMain)
 
 add_executable(phu_detector_tests
@@ -83,6 +85,8 @@ target_include_directories(phu_detector_tests PRIVATE
 
 target_compile_features(phu_detector_tests PRIVATE cxx_std_17)
 
+target_compile_definitions(phu_detector_tests PRIVATE _USE_MATH_DEFINES)
+
 target_link_libraries(phu_detector_tests PRIVATE Catch2::Catch2WithMain)
 
 add_executable(phu_variable_mu_tests
@@ -96,6 +100,8 @@ target_include_directories(phu_variable_mu_tests PRIVATE
 )
 
 target_compile_features(phu_variable_mu_tests PRIVATE cxx_std_17)
+
+target_compile_definitions(phu_variable_mu_tests PRIVATE _USE_MATH_DEFINES)
 
 target_link_libraries(phu_variable_mu_tests PRIVATE Catch2::Catch2WithMain)
 
@@ -113,6 +119,8 @@ target_include_directories(phu_fairchild670core_tests PRIVATE
 )
 
 target_compile_features(phu_fairchild670core_tests PRIVATE cxx_std_17)
+
+target_compile_definitions(phu_fairchild670core_tests PRIVATE _USE_MATH_DEFINES)
 
 target_link_libraries(phu_fairchild670core_tests PRIVATE Catch2::Catch2WithMain)
 
