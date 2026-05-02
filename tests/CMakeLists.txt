@@ -71,9 +71,24 @@ target_compile_features(phu_tube_stage_tests PRIVATE cxx_std_17)
 
 target_link_libraries(phu_tube_stage_tests PRIVATE Catch2::Catch2WithMain)
 
+add_executable(phu_detector_tests
+    DetectorTests.cpp
+    ../src/DSP/Models/Sidechain/RectifierDetector.cpp
+    ../src/DSP/Models/Sidechain/TimingNetwork.cpp
+)
+
+target_include_directories(phu_detector_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+target_compile_features(phu_detector_tests PRIVATE cxx_std_17)
+
+target_link_libraries(phu_detector_tests PRIVATE Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(phu_dsp_tests)
 catch_discover_tests(phu_circuit_tests)
 catch_discover_tests(phu_nr_policy_tests)
 catch_discover_tests(phu_triode_koren_tests)
 catch_discover_tests(phu_tube_stage_tests)
+catch_discover_tests(phu_detector_tests)
