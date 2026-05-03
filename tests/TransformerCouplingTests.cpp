@@ -160,7 +160,7 @@ TEST_CASE("CoupledInductors: coupling transfers AC signal to secondary",
     const double sampleRate = 44100.0;
     const double R_prim = 100.0;
     const double R_load = 100.0;
-    const double L      = 0.1;   // 100 mH: X_L ≈ 628 Ω at 1 kHz
+    const double L      = 0.1;   // 100 mH: X_L ≈ 628 Ω at the 1 kHz test frequency
     const double k      = 0.9;
     const double M      = k * L;
 

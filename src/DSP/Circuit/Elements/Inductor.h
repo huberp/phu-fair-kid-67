@@ -75,7 +75,11 @@ struct CoupledInductorCompanion {
 
     double G11 = 0.0;   ///< Companion conductance for port 1.
     double G22 = 0.0;   ///< Companion conductance for port 2.
-    double G12 = 0.0;   ///< Mutual companion conductance (negative when M > 0).
+    double G12 = 0.0;   ///< Mutual companion conductance.
+                        ///< Negative when M > 0: a positive primary voltage
+                        ///< induces current opposing the build-up in the
+                        ///< secondary, consistent with Lenz's law and the
+                        ///< sign convention I_2 = G12·V_L1 + G22·V_L2 + Ieq2.
 
     double Ieq1 = 0.0;  ///< History current source for port 1.
     double Ieq2 = 0.0;  ///< History current source for port 2.
