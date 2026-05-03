@@ -43,6 +43,9 @@ jobs:
     needs: create-tag
     uses: ./.github/workflows/build.yml
     secrets: inherit
+    permissions:
+      contents: read
+      actions: read
 
   package:
     needs: [create-tag, build]
