@@ -8,6 +8,10 @@ on:
   workflow_dispatch:
   workflow_call:
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -97,15 +101,15 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "$VALIDATION_STATUS" == "passed" ]; then
-            echo "### ✅ Validation Passed" >> $GITHUB_STEP_SUMMARY
+            echo "### Validation Passed" >> $GITHUB_STEP_SUMMARY
           elif [ "$VALIDATION_STATUS" == "failed" ]; then
-            echo "### ❌ Validation Failed" >> $GITHUB_STEP_SUMMARY
+            echo "### Validation Failed" >> $GITHUB_STEP_SUMMARY
           elif [ "$VALIDATION_STATUS" == "no_plugin" ]; then
-            echo "### ⚠️ VST3 Plugin Not Found" >> $GITHUB_STEP_SUMMARY
+            echo "### VST3 Plugin Not Found" >> $GITHUB_STEP_SUMMARY
           elif [ "$VALIDATION_STATUS" == "no_pluginval" ]; then
-            echo "### ⚠️ Pluginval Not Found" >> $GITHUB_STEP_SUMMARY
+            echo "### Pluginval Not Found" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### ⚠️ No Results" >> $GITHUB_STEP_SUMMARY
+            echo "### No Results" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -121,7 +125,7 @@ jobs:
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📦 Full validation results available in artifacts." \
+          echo "Full validation results available in artifacts." \
             >> $GITHUB_STEP_SUMMARY
 
       - name: Fail Build on Validation Failure
