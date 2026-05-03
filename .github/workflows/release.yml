@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.tag.outputs.tag_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Version Format
+        id: validate
+        run: |
+          if [[ ! ${{ github.event.inputs.version }} =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must be in the format v<x>.<y>.<z> (e.g., v1.0.0)"
+            exit 1
+          fi
+
+      - name: Create Tag
+        id: tag
+        run: |
+          TAG_NAME=${{ github.event.inputs.version }}
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+  build:
+    needs: create-tag
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  package:
+    needs: [create-tag, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Package Artifacts
+        run: |
+          mkdir -p release
+          for dir in artifacts/*/; do
+            if [ -d "$dir" ]; then
+              plugin_name=$(basename "$dir")
+              mkdir -p "release/${plugin_name}"
+              cp -r "$dir"/* "release/${plugin_name}/"
+              cp README.md "release/${plugin_name}/"
+              (cd "release/${plugin_name}" && zip -r "../${plugin_name}.zip" .)
+            fi
+          done
+
+      - name: Upload Release Zips
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zips
+          path: release/*.zip
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Release Zips
+        uses: actions/download-artifact@v4
+        with:
+          name: release-zips
+          path: release-zips
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.create-tag.outputs.tag_name }}
+          files: release-zips/*.zip
+          generate_release_notes: true
