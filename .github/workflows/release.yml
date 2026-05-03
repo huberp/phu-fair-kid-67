@@ -79,7 +79,7 @@ jobs:
           path: release/*.zip
 
   publish:
-    needs: package
+    needs: [ create-tag, package ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
