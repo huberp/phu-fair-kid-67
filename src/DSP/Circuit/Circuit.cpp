@@ -21,6 +21,8 @@ Circuit::Circuit(int numNodes, int numVSrc)
     x_.resize(size_, 0.0);
     tmp_.resize(size_);
     caps_.reserve(16);
+    inductors_.reserve(8);
+    coupled_.reserve(4);
 }
 
 // ── Element stamping ──────────────────────────────────────────────────────────
@@ -53,6 +55,38 @@ void Circuit::stampVoltageSource(int vsrcIdx, int nodeP, int nodeN)
     factorized_ = false;
 }
 
+int Circuit::stampInductor(double henries, int nodeP, int nodeN)
+{
+    assert(henries > 0.0);
+    IndRecord rec;
+    rec.nodeP = nodeP;
+    rec.nodeN = nodeN;
+    rec.companion.henries = henries;
+    // Geq will be stamped during prepare(); Ieq starts at 0.
+    const int index = static_cast<int>(inductors_.size());
+    inductors_.push_back(rec);
+    factorized_ = false;
+    return index;
+}
+
+int Circuit::stampCoupledInductors(double L1, double L2, double M,
+                                   int nodeP1, int nodeN1,
+                                   int nodeP2, int nodeN2)
+{
+    assert(L1 > 0.0 && L2 > 0.0);
+    assert(M * M < L1 * L2); // coupling coefficient |k| < 1
+    CoupledRecord rec;
+    rec.nodeP1 = nodeP1; rec.nodeN1 = nodeN1;
+    rec.nodeP2 = nodeP2; rec.nodeN2 = nodeN2;
+    rec.companion.L1 = L1;
+    rec.companion.L2 = L2;
+    rec.companion.M  = M;
+    const int index = static_cast<int>(coupled_.size());
+    coupled_.push_back(rec);
+    factorized_ = false;
+    return index;
+}
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 void Circuit::prepare(double sampleRate)
@@ -70,12 +104,46 @@ void Circuit::prepare(double sampleRate)
                          rec.nodeP, rec.nodeN);
     }
 
+    for (auto& rec : inductors_) {
+        // Remove the previous inductor companion conductance from A_base_.
+        stampConductance(A_base_.data(), size_, -rec.companion.Geq,
+                         rec.nodeP, rec.nodeN);
+        // Recompute Geq for the new sample rate and stamp it.
+        rec.companion.prepare(T_);
+        stampConductance(A_base_.data(), size_, rec.companion.Geq,
+                         rec.nodeP, rec.nodeN);
+    }
+
+    for (auto& rec : coupled_) {
+        // Remove previous conductance stamps for this coupled pair.
+        stampConductance(A_base_.data(), size_, -rec.companion.G11,
+                         rec.nodeP1, rec.nodeN1);
+        stampConductance(A_base_.data(), size_, -rec.companion.G22,
+                         rec.nodeP2, rec.nodeN2);
+        stampMutualConductance(A_base_.data(), size_, -rec.companion.G12,
+                               rec.nodeP1, rec.nodeN1,
+                               rec.nodeP2, rec.nodeN2);
+        // Recompute companion conductances and re-stamp.
+        rec.companion.prepare(T_);
+        stampConductance(A_base_.data(), size_, rec.companion.G11,
+                         rec.nodeP1, rec.nodeN1);
+        stampConductance(A_base_.data(), size_, rec.companion.G22,
+                         rec.nodeP2, rec.nodeN2);
+        stampMutualConductance(A_base_.data(), size_, rec.companion.G12,
+                               rec.nodeP1, rec.nodeN1,
+                               rec.nodeP2, rec.nodeN2);
+    }
+
     factorized_ = luFactor();
 }
 
 void Circuit::reset()
 {
     for (auto& rec : caps_)
+        rec.companion.reset();
+    for (auto& rec : inductors_)
+        rec.companion.reset();
+    for (auto& rec : coupled_)
         rec.companion.reset();
 }
 
@@ -111,6 +179,24 @@ bool Circuit::solve()
         if (rec.nodeN > 0) z_[rec.nodeN - 1] -= Ieq;
     }
 
+    // Add inductor companion current sources to z_.
+    // I_L[k] = Geq·VL + Ieq  →  Ieq flows from nodeP to nodeN.
+    for (const auto& rec : inductors_) {
+        const double Ieq = rec.companion.Ieq;
+        if (rec.nodeP > 0) z_[rec.nodeP - 1] -= Ieq;
+        if (rec.nodeN > 0) z_[rec.nodeN - 1] += Ieq;
+    }
+
+    // Add coupled-inductor companion current sources to z_.
+    for (const auto& rec : coupled_) {
+        const double Ieq1 = rec.companion.Ieq1;
+        const double Ieq2 = rec.companion.Ieq2;
+        if (rec.nodeP1 > 0) z_[rec.nodeP1 - 1] -= Ieq1;
+        if (rec.nodeN1 > 0) z_[rec.nodeN1 - 1] += Ieq1;
+        if (rec.nodeP2 > 0) z_[rec.nodeP2 - 1] -= Ieq2;
+        if (rec.nodeN2 > 0) z_[rec.nodeN2 - 1] += Ieq2;
+    }
+
     luSolve();
 
     // Update each capacitor's companion model for the next step.
@@ -119,6 +205,24 @@ bool Circuit::solve()
         if (rec.nodeP > 0) Vc += x_[rec.nodeP - 1];
         if (rec.nodeN > 0) Vc -= x_[rec.nodeN - 1];
         rec.companion.update(Vc);
+    }
+
+    // Update each inductor's companion model for the next step.
+    for (auto& rec : inductors_) {
+        double VL = 0.0;
+        if (rec.nodeP > 0) VL += x_[rec.nodeP - 1];
+        if (rec.nodeN > 0) VL -= x_[rec.nodeN - 1];
+        rec.companion.update(VL);
+    }
+
+    // Update each coupled-inductor's companion model for the next step.
+    for (auto& rec : coupled_) {
+        double VL1 = 0.0, VL2 = 0.0;
+        if (rec.nodeP1 > 0) VL1 += x_[rec.nodeP1 - 1];
+        if (rec.nodeN1 > 0) VL1 -= x_[rec.nodeN1 - 1];
+        if (rec.nodeP2 > 0) VL2 += x_[rec.nodeP2 - 1];
+        if (rec.nodeN2 > 0) VL2 -= x_[rec.nodeN2 - 1];
+        rec.companion.update(VL1, VL2);
     }
 
     return true;

@@ -139,6 +139,19 @@ target_compile_definitions(phu_transformer_linear_tests PRIVATE _USE_MATH_DEFINE
 
 target_link_libraries(phu_transformer_linear_tests PRIVATE Catch2::Catch2WithMain)
 
+add_executable(phu_transformer_coupling_tests
+    TransformerCouplingTests.cpp
+    ../src/DSP/Circuit/Circuit.cpp
+)
+
+target_include_directories(phu_transformer_coupling_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+target_compile_features(phu_transformer_coupling_tests PRIVATE cxx_std_17)
+
+target_link_libraries(phu_transformer_coupling_tests PRIVATE Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(phu_dsp_tests)
 catch_discover_tests(phu_circuit_tests)
@@ -149,3 +162,4 @@ catch_discover_tests(phu_detector_tests)
 catch_discover_tests(phu_variable_mu_tests)
 catch_discover_tests(phu_fairchild670core_tests)
 catch_discover_tests(phu_transformer_linear_tests)
+catch_discover_tests(phu_transformer_coupling_tests)

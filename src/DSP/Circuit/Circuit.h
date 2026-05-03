@@ -1,15 +1,18 @@
 #pragma once
 
 #include "Elements/Capacitor.h"
+#include "Elements/Inductor.h"
 #include <vector>
 
 namespace Circuit {
 
 /// Linear MNA (Modified Nodal Analysis) circuit solver.
 ///
-/// Supports resistors, capacitors (trapezoidal companion model), and
-/// independent voltage sources. All internal buffers are preallocated in the
-/// constructor; no heap allocations occur during per-sample processing.
+/// Supports resistors, capacitors (trapezoidal companion model), inductors
+/// (trapezoidal companion model), coupled inductors (mutual-inductance
+/// stamping), and independent voltage sources.  All internal buffers are
+/// preallocated in the constructor; no heap allocations occur during
+/// per-sample processing.
 ///
 /// Node numbering convention:
 ///   0            = ground (reference, excluded from the MNA system).
@@ -46,6 +49,18 @@ public:
     /// Stamp a capacitor between nodeP and nodeN.
     /// @return Capacitor index (for future reference).
     int  stampCapacitor(double farads, int nodeP, int nodeN);
+
+    /// Stamp an inductor between nodeP and nodeN.
+    /// @return Inductor index (for future reference).
+    int  stampInductor(double henries, int nodeP, int nodeN);
+
+    /// Stamp two magnetically coupled inductors L1 and L2 with mutual
+    /// inductance M.  The coupling coefficient k = M / sqrt(L1·L2) must
+    /// satisfy |k| < 1 (strict, to keep the inductance matrix non-singular).
+    /// @return Coupled-inductor record index (for future reference).
+    int  stampCoupledInductors(double L1, double L2, double M,
+                               int nodeP1, int nodeN1,
+                               int nodeP2, int nodeN2);
 
     /// Stamp voltage source vsrcIdx between nodeP (+) and nodeN (−).
     void stampVoltageSource(int vsrcIdx, int nodeP, int nodeN);
@@ -116,6 +131,18 @@ private:
         CapacitorCompanion companion;
     };
     std::vector<CapRecord> caps_;
+
+    struct IndRecord {
+        int nodeP, nodeN;
+        InductorCompanion companion;
+    };
+    std::vector<IndRecord> inductors_;
+
+    struct CoupledRecord {
+        int nodeP1, nodeN1, nodeP2, nodeN2;
+        CoupledInductorCompanion companion;
+    };
+    std::vector<CoupledRecord> coupled_;
 
     bool factorized_ = false;
 
