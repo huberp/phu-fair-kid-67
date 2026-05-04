@@ -132,5 +132,36 @@ double triodeDIpDVgk(double Vpk, double Vgk, const TubeParams& p) noexcept
     return p.x * std::pow(E1, p.x - 1.0) / p.kg1 * dE1_dVgk;
 }
 
+void triodeIpAndPartials(double Vpk, double Vgk, const TubeParams& p,
+                         double& Ip, double& gds, double& gm) noexcept
+{
+    double E1, sig, sqV2;
+    korenIntermediates(Vpk, Vgk, p, E1, sig, sqV2);
+
+    if (E1 <= 0.0) {
+        Ip = gds = gm = 0.0;
+        return;
+    }
+
+    // Compute E1^x once; derive E1^(x-1) = E1^x / E1 to avoid a second pow.
+    const double Ex   = std::pow(E1, p.x);
+    const double Exx1 = Ex / E1; // E1^(x−1)
+
+    Ip = Ex / p.kg1;
+
+    // ∂E1/∂Vpk — see triodeDIpDVpk for derivation.
+    const double V2         = sqV2 * sqV2;
+    const double sp_over_kp = (Vpk != 0.0) ? (E1 / Vpk)
+                                            : softplus(p.kp * (1.0 / p.mu + Vgk / sqV2)) / p.kp;
+    const double dE1_dVpk = sp_over_kp - Vpk * Vpk * Vgk * sig / (V2 * sqV2);
+
+    // ∂E1/∂Vgk = Vpk · sig / sqV2
+    const double dE1_dVgk = Vpk * sig / sqV2;
+
+    const double x_Exx1_kg1 = p.x * Exx1 / p.kg1;
+    gds = x_Exx1_kg1 * dE1_dVpk;
+    gm  = x_Exx1_kg1 * dE1_dVgk;
+}
+
 } // namespace Nonlinear
 } // namespace Circuit

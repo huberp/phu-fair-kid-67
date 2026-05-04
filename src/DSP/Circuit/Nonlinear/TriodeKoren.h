@@ -77,5 +77,21 @@ double triodeDIpDVpk(double Vpk, double Vgk, const TubeParams& p) noexcept;
 /// @return     ∂Ip/∂Vgk (S — amperes per volt).
 double triodeDIpDVgk(double Vpk, double Vgk, const TubeParams& p) noexcept;
 
+/// Compute Ip, ∂Ip/∂Vpk, and ∂Ip/∂Vgk in a single fused call.
+///
+/// Equivalent to calling triodeIp, triodeDIpDVpk, and triodeDIpDVgk
+/// separately, but runs korenIntermediates and std::pow only once.
+/// Use this in Newton-Raphson loops where all three quantities are needed
+/// every iteration.
+///
+/// @param Vpk   Plate-to-cathode voltage (V).
+/// @param Vgk   Grid-to-cathode voltage (V).
+/// @param p     Tube parameters.
+/// @param[out] Ip   Plate current (A), always ≥ 0.
+/// @param[out] gds  ∂Ip/∂Vpk (S).
+/// @param[out] gm   ∂Ip/∂Vgk (S).
+void triodeIpAndPartials(double Vpk, double Vgk, const TubeParams& p,
+                         double& Ip, double& gds, double& gm) noexcept;
+
 } // namespace Nonlinear
 } // namespace Circuit
