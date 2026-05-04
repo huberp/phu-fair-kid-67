@@ -143,7 +143,7 @@ void triodeIpAndPartials(double Vpk, double Vgk, const TubeParams& p,
         return;
     }
 
-    // Compute E1^x once; derive E1^(x-1) = E1^x / E1 to avoid a second pow.
+    // Compute E1^x once; derive E1^(x−1) = E1^x / E1 to avoid a second pow.
     const double Ex   = std::pow(E1, p.x);
     const double Exx1 = Ex / E1; // E1^(x−1)
 
