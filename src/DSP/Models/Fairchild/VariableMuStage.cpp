@@ -108,9 +108,8 @@ float VariableMuStage::processSample(float sample) noexcept
         const double Vpk = Vp - Vk;
         const double Vgk = vinBiased - Vk;
 
-        const double Ip  = triodeIp(Vpk, Vgk, tube);
-        const double gds = triodeDIpDVpk(Vpk, Vgk, tube);
-        const double gm  = triodeDIpDVgk(Vpk, Vgk, tube);
+        double Ip, gds, gm;
+        triodeIpAndPartials(Vpk, Vgk, tube, Ip, gds, gm);
 
         // Residuals.
         const double f1 = (Vcc - Vp) * invRp - Ip;
