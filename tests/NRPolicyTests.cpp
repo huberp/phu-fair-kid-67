@@ -3,6 +3,7 @@
 
 #include "../src/DSP/Circuit/Nonlinear/NR.h"
 
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -13,10 +14,10 @@ using namespace Circuit::Nonlinear;
 TEST_CASE("NR: converges to sqrt(2) from x=1", "[nr][convergence]") {
     // Toy nonlinear problem: f(x) = x² − 2 = 0  →  x* = √2 ≈ 1.41421…
     // Newton step: x_new = x − f(x)/f'(x) = (x + 2/x) / 2
-    NRPolicy nr;
-    std::vector<double> x = {1.0};
+    NRPolicy<1> nr;
+    std::array<double, 1> x = {1.0};
 
-    auto stepFn = [](std::vector<double>& x) -> bool {
+    auto stepFn = [](std::array<double, 1>& x) -> bool {
         const double v = x[0];
         if (std::abs(v) < 1e-14) return false; // singular Jacobian
         x[0] = 0.5 * (v + 2.0 / v);
@@ -37,10 +38,10 @@ TEST_CASE("NR: converges in one step when starting at the fixed point", "[nr][co
     // The step always returns [1.0, 2.0].  Starting from the fixed point itself
     // means delta == 0 on the first call, so the solver detects convergence
     // in exactly one iteration regardless of tolerance.
-    NRPolicy nr;
-    std::vector<double> x = {1.0, 2.0}; // start at the solution
+    NRPolicy<2> nr;
+    std::array<double, 2> x = {1.0, 2.0}; // start at the solution
 
-    auto stepFn = [](std::vector<double>& x) -> bool {
+    auto stepFn = [](std::array<double, 2>& x) -> bool {
         x[0] = 1.0;
         x[1] = 2.0;
         return true;
@@ -57,10 +58,10 @@ TEST_CASE("NR: converges in one step when starting at the fixed point", "[nr][co
 // ── No NaN / Inf when the step produces NaN ──────────────────────────────────
 
 TEST_CASE("NR: no NaN/Inf when step returns NaN — fallback applied", "[nr][robustness]") {
-    NRPolicy nr;
-    std::vector<double> x = {1.5};
+    NRPolicy<1> nr;
+    std::array<double, 1> x = {1.5};
 
-    auto nanStep = [](std::vector<double>& x) -> bool {
+    auto nanStep = [](std::array<double, 1>& x) -> bool {
         x[0] = std::numeric_limits<double>::quiet_NaN();
         return true;
     };
@@ -73,10 +74,10 @@ TEST_CASE("NR: no NaN/Inf when step returns NaN — fallback applied", "[nr][rob
 }
 
 TEST_CASE("NR: no NaN/Inf when step returns Inf — fallback applied", "[nr][robustness]") {
-    NRPolicy nr;
-    std::vector<double> x = {2.0};
+    NRPolicy<1> nr;
+    std::array<double, 1> x = {2.0};
 
-    auto infStep = [](std::vector<double>& x) -> bool {
+    auto infStep = [](std::array<double, 1>& x) -> bool {
         x[0] = std::numeric_limits<double>::infinity();
         return true;
     };
@@ -96,11 +97,11 @@ TEST_CASE("NR: falls back to initial x when maxIterations exceeded", "[nr][fallb
     cfg.maxIterations  = 5;
     cfg.convergenceTol = 1e-12;
     cfg.maxDeltaV      = 0.0; // disable step limiting so the full delta is used
-    NRPolicy nr(cfg);
+    NRPolicy<1> nr(cfg);
 
-    std::vector<double> x = {3.0};
+    std::array<double, 1> x = {3.0};
 
-    auto divergeStep = [](std::vector<double>& x) -> bool {
+    auto divergeStep = [](std::array<double, 1>& x) -> bool {
         x[0] = -x[0]; // flip sign every iteration
         return true;
     };
@@ -115,10 +116,10 @@ TEST_CASE("NR: falls back to initial x when maxIterations exceeded", "[nr][fallb
 // ── Fallback when the step callback signals failure ───────────────────────────
 
 TEST_CASE("NR: falls back when step returns false (singular Jacobian)", "[nr][fallback]") {
-    NRPolicy nr;
-    std::vector<double> x = {7.0};
+    NRPolicy<1> nr;
+    std::array<double, 1> x = {7.0};
 
-    auto failStep = [](std::vector<double>& x) -> bool {
+    auto failStep = [](std::array<double, 1>& x) -> bool {
         x[0] = 99.0; // would corrupt x
         return false; // signal linear-solve failure
     };
@@ -140,11 +141,11 @@ TEST_CASE("NR: step limiting clamps large deltas (scalar)", "[nr][damping]") {
     cfg.maxIterations  = 5;
     cfg.convergenceTol = 1.1;
     cfg.maxDeltaV      = 0.5;
-    NRPolicy nr(cfg);
+    NRPolicy<1> nr(cfg);
 
-    std::vector<double> x = {0.0};
+    std::array<double, 1> x = {0.0};
 
-    auto bigStep = [](std::vector<double>& x) -> bool {
+    auto bigStep = [](std::array<double, 1>& x) -> bool {
         x[0] = 10.0;
         return true;
     };
@@ -162,11 +163,11 @@ TEST_CASE("NR: step limiting clamps large deltas (2D)", "[nr][damping]") {
     cfg.maxIterations  = 5;
     cfg.convergenceTol = 1.1;
     cfg.maxDeltaV      = 0.5;
-    NRPolicy nr(cfg);
+    NRPolicy<2> nr(cfg);
 
-    std::vector<double> x = {0.0, 0.0};
+    std::array<double, 2> x = {0.0, 0.0};
 
-    auto bigStep2D = [](std::vector<double>& x) -> bool {
+    auto bigStep2D = [](std::array<double, 2>& x) -> bool {
         x[0] = 5.0;
         x[1] = 5.0;
         return true;
@@ -190,11 +191,11 @@ TEST_CASE("NR: damping factor scales the applied step", "[nr][damping]") {
     cfg.convergenceTol = 1.1;
     cfg.dampingFactor  = 0.5;
     cfg.maxDeltaV      = 100.0; // no limiting
-    NRPolicy nr(cfg);
+    NRPolicy<1> nr(cfg);
 
-    std::vector<double> x = {0.0};
+    std::array<double, 1> x = {0.0};
 
-    auto stepFn = [](std::vector<double>& x) -> bool {
+    auto stepFn = [](std::array<double, 1>& x) -> bool {
         x[0] = 2.0;
         return true;
     };
@@ -209,10 +210,10 @@ TEST_CASE("NR: damping factor scales the applied step", "[nr][damping]") {
 
 #ifndef NDEBUG
 TEST_CASE("NR: debug counters accumulate across calls and reset correctly", "[nr][debug]") {
-    NRPolicy nr;
-    std::vector<double> x = {1.0};
+    NRPolicy<1> nr;
+    std::array<double, 1> x = {1.0};
 
-    auto stepFn = [](std::vector<double>& x) -> bool {
+    auto stepFn = [](std::array<double, 1>& x) -> bool {
         const double v = x[0];
         if (std::abs(v) < 1e-14) return false;
         x[0] = 0.5 * (v + 2.0 / v);

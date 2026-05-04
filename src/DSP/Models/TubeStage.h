@@ -4,7 +4,7 @@
 #include "../Circuit/Nonlinear/NR.h"
 #include "../Circuit/Nonlinear/TriodeKoren.h"
 
-#include <vector>
+#include <array>
 
 namespace Models {
 
@@ -87,13 +87,13 @@ private:
 
     /// Operating-point state vector: x_[0] = Vp (V), x_[1] = Vk (V).
     /// Warm-starts each NR solve; updated to the converged solution each sample.
-    std::vector<double> x_;
+    std::array<double, 2> x_;
 
     /// Cathode bypass capacitor companion model (active only when cfg_.Ck > 0).
     Circuit::CapacitorCompanion capK_;
 
     /// Newton-Raphson iteration manager (constructed once from cfg_.nr).
-    Circuit::Nonlinear::NRPolicy nr_;
+    Circuit::Nonlinear::NRPolicy<2> nr_;
 };
 
 } // namespace Models
