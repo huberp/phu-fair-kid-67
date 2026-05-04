@@ -24,7 +24,6 @@ TubeStageConfig::TubeStageConfig()
 TubeStage::TubeStage(TubeStageConfig cfg) noexcept
     : cfg_(std::move(cfg)), nr_(cfg_.nr)
 {
-    x_.resize(2);
     // Start-up estimate: plate near the midpoint of the supply rail, cathode
     // at a typical self-bias voltage.  NR will move this to the true quiescent
     // point on the first few samples.
@@ -84,7 +83,7 @@ float TubeStage::processSample(float sample) noexcept
     //
     // The Newton step Δ = −J⁻¹·f(x) is solved in closed form via
     // Cramer's rule for the 2×2 system.
-    auto stepFn = [&](std::vector<double>& x) -> bool {
+    auto stepFn = [&](std::array<double, 2>& x) -> bool {
         const double Vp  = x[0];
         const double Vk  = x[1];
         const double Vpk = Vp - Vk;

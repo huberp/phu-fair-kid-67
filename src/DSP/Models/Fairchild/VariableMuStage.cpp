@@ -24,7 +24,6 @@ VariableMuStageConfig::VariableMuStageConfig()
 VariableMuStage::VariableMuStage(VariableMuStageConfig cfg) noexcept
     : cfg_(std::move(cfg)), nr_(cfg_.nr)
 {
-    x_.resize(2);
     // Start-up estimate: plate near the midpoint of the supply rail, cathode
     // at a typical self-bias voltage.  NR will move this to the true quiescent
     // point on the first few samples.
@@ -102,7 +101,7 @@ float VariableMuStage::processSample(float sample) noexcept
     //        [       −gds,   1/Rk + Geq_k + gds + gm ]]
     //
     // Newton step Δ = −J⁻¹·f(x) solved via Cramer's rule.
-    auto stepFn = [&](std::vector<double>& x) -> bool {
+    auto stepFn = [&](std::array<double, 2>& x) -> bool {
         const double Vp  = x[0];
         const double Vk  = x[1];
         const double Vpk = Vp - Vk;

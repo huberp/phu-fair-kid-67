@@ -1,8 +1,8 @@
 #pragma once
 
+#include <array>
 #include <cmath>
 #include <limits>
-#include <vector>
 
 namespace Circuit {
 namespace Nonlinear {
@@ -32,26 +32,29 @@ struct NRResult {
 ///   - NaN / Inf sanitization, and
 ///   - fallback to the last-known-good solution on non-convergence.
 ///
-/// The step callback signature must be compatible with `bool(std::vector<double>&)`:
+/// The N template parameter fixes the state-vector size at compile time,
+/// enabling stack allocation of all scratch buffers and eliminating heap
+/// indirection in the hot path.
+///
+/// The step callback signature must be compatible with
+/// `bool(std::array<double, N>&)`:
 ///   - Receives the current iterate by reference and overwrites it with the
 ///     next Newton estimate.
 ///   - Returns `true` on success, `false` if the underlying linear solve
 ///     failed (e.g. singular Jacobian) — triggers an immediate fallback.
 ///
-/// Internal scratch buffers are sized on first call and reused thereafter;
-/// no heap allocations occur once the state-vector size is stable.
-///
 /// Typical usage:
 /// @code
-///   NRPolicy nr;
-///   std::vector<double> x = {initialGuess};
-///   auto result = nr.solve(x, [&](std::vector<double>& x) {
+///   NRPolicy<2> nr;
+///   std::array<double, 2> x = {initialGuess0, initialGuess1};
+///   auto result = nr.solve(x, [&](std::array<double, 2>& x) {
 ///       // 1. Stamp nonlinear elements based on current x
 ///       // 2. Solve the linearised MNA system, write result into x
 ///       return true; // false if the linear solve failed
 ///   });
 ///   if (!result.converged) { /* x was restored to the initial guess */ }
 /// @endcode
+template <std::size_t N>
 class NRPolicy {
 public:
     explicit NRPolicy(NRConfig cfg = {}) noexcept : cfg_(cfg) {}
@@ -69,10 +72,10 @@ public:
     /// @param x     On entry: initial guess (typically the previous sample's
     ///              solution). On exit: converged solution, or the original
     ///              value of x restored as a fallback if convergence failed.
-    /// @param step  Callable `bool(std::vector<double>& x)` — see class doc.
+    /// @param step  Callable `bool(std::array<double, N>& x)` — see class doc.
     /// @return      NRResult with convergence flag and iteration count.
     template <typename StepFn>
-    NRResult solve(std::vector<double>& x, StepFn step);
+    NRResult solve(std::array<double, N>& x, StepFn step);
 
 #ifndef NDEBUG
     /// Cumulative iteration count since the last resetCounters() call.
@@ -84,9 +87,9 @@ public:
 #endif
 
 private:
-    NRConfig            cfg_;
-    std::vector<double> xPrev_;     ///< Scratch: iterate before each step.
-    std::vector<double> xFallback_; ///< Scratch: entry state used for fallback.
+    NRConfig              cfg_;
+    std::array<double, N> xPrev_;     ///< Scratch: iterate before each step.
+    std::array<double, N> xFallback_; ///< Scratch: entry state used for fallback.
 
 #ifndef NDEBUG
     int totalIter_ = 0;
@@ -95,23 +98,18 @@ private:
 
 // ── Template implementation ───────────────────────────────────────────────────
 
+template <std::size_t N>
 template <typename StepFn>
-NRResult NRPolicy::solve(std::vector<double>& x, StepFn step)
+NRResult NRPolicy<N>::solve(std::array<double, N>& x, StepFn step)
 {
-    const int n = static_cast<int>(x.size());
-
-    // Resize scratch buffers when the state-vector size changes.
-    if (static_cast<int>(xPrev_.size())     != n) xPrev_.resize(n);
-    if (static_cast<int>(xFallback_.size()) != n) xFallback_.resize(n);
-
     // Record the entry state as the fallback solution.
-    xFallback_.assign(x.begin(), x.end());
+    xFallback_ = x;
 
     NRResult result;
 
     for (int iter = 0; iter < cfg_.maxIterations; ++iter) {
         // Save the current iterate before the step.
-        xPrev_.assign(x.begin(), x.end());
+        xPrev_ = x;
 
         // Compute one Newton step (callback updates x in place).
         const bool ok = step(x);
@@ -123,7 +121,7 @@ NRResult NRPolicy::solve(std::vector<double>& x, StepFn step)
         }
 
         // Sanitize: replace any NaN / Inf with the fallback and abort.
-        for (int i = 0; i < n; ++i) {
+        for (std::size_t i = 0; i < N; ++i) {
             if (!std::isfinite(x[i])) {
                 x = xFallback_;
                 return result;
@@ -133,7 +131,7 @@ NRResult NRPolicy::solve(std::vector<double>& x, StepFn step)
         // Compute delta, apply per-element step limiting and damping.
         double deltaL2 = 0.0;
         double xL2     = 0.0;
-        for (int i = 0; i < n; ++i) {
+        for (std::size_t i = 0; i < N; ++i) {
             double d = x[i] - xPrev_[i];
 
             // Clamp per-element step magnitude if a limit is configured.
