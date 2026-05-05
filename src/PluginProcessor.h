@@ -43,6 +43,7 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     static constexpr const char* kParamBypass          = "bypass";
     static constexpr const char* kParamLinkMode        = "linkMode";
     static constexpr const char* kParamTimingPosition  = "timingPosition";
+    static constexpr const char* kParamThreshold       = "threshold";
 
     juce::AudioProcessorValueTreeState apvts;
 
@@ -57,7 +58,9 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
   private:
     juce::dsp::Gain<float>        inputGain;
     juce::dsp::Gain<float>        outputGain;
-    juce::dsp::DryWetMixer<float> dryWetMixer;
+    // Constructed with 512-sample max latency so the dry-path delay line can
+    // compensate for the oversampling FIR latency (up to ~200 samples at 8×).
+    juce::dsp::DryWetMixer<float> dryWetMixer{512};
 
     DSP::OversamplingChain oversamplingChain_;
 

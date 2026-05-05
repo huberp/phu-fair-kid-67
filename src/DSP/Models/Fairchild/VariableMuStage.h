@@ -135,6 +135,34 @@ private:
 
     /// Newton-Raphson iteration manager (constructed once from cfg_.nr).
     Circuit::Nonlinear::NRPolicy<2> nr_;
+
+    // ── DC-blocking output filter ──────────────────────────────────────────
+    // Models the output coupling capacitor present in all real tube circuits.
+    // The triode's quiescent plate voltage (~150–200 V) is a large DC offset
+    // that must be removed before the signal reaches the next stage.
+    // A first-order HPF at ~10 Hz provides this: y[n] = x[n] - x[n-1] + R·y[n-1].
+    double dcBlockCoeff_ = 0.9999; ///< Feedback coefficient R; computed in prepare().
+    double dcBlockX1_    = 0.0;    ///< Previous raw plate sample (x[n-1]).
+    double dcBlockY1_    = 0.0;    ///< Previous filtered output (y[n-1]).
+
+    // ── Quiescent operating point ──────────────────────────────────────────
+    // Computed in prepare() via NR at Vin=0, cv=0. Used to warm-start NR
+    // in reset() and to pre-charge the DC blocker so there is no startup
+    // transient (the DC blocker would otherwise need ~1 s to settle from zero).
+    double xQp_ = 0.0;             ///< Quiescent plate voltage (V); 0 before prepare().
+    double xQk_ = 1.5;             ///< Quiescent cathode voltage (V).
+    double Vp_quiescent_norm_ = 0.0; ///< Quiescent plate voltage in normalised units.
+
+    // ── Output gain normalisation ──────────────────────────────────────────
+    // The common-cathode triode is inverting (Vout = −|Av|·Vin) and has a
+    // high open-loop gain magnitude (|Av| ≈ 30 for the 6072 / 100 kΩ topology).
+    // We normalise to unity small-signal gain at CV=0 so the stage acts as a
+    // VCA: gain = 1 at CV=0, gain < 1 at higher CV.  The negation applied in
+    // processSample() corrects the phase inversion so the wet path is in-phase
+    // with the dry path at all mix values.
+    // Computed from the quiescent small-signal Jacobian in prepare().
+    // Default 1.0 = no-op safe value before prepare() is called.
+    double invGainMag_ = 1.0; ///< 1 / |Av_quiescent|; multiplied (with sign flip) into output.
 };
 
 } // namespace Models

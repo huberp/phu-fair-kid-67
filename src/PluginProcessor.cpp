@@ -46,6 +46,14 @@ PhuFairKid67AudioProcessor::createParameterLayout() {
         juce::ParameterID{kParamTimingPosition, 1}, "Timing",
         juce::StringArray{"1", "2", "3", "4", "5", "6"}, 0));
 
+    // Threshold: 0 = no compression (threshold above any possible signal),
+    // 10 = maximum sensitivity (threshold at 0 V, always compressing).
+    // Maps to thresholdVoltage = (10 - param) volts, matching the detector's
+    // 0–10 V full-scale output range.  Default 5 ≈ -6 dBFS onset.
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamThreshold, 1}, "Threshold",
+        juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f), 5.0f));
+
     return layout;
 }
 
@@ -92,6 +100,11 @@ void PhuFairKid67AudioProcessor::prepareToPlay(double sampleRate, int samplesPer
 
     // Report oversampling filter latency to the host so it can compensate.
     setLatencySamples(oversamplingChain_.getLatencySamples());
+
+    // Tell the dry/wet mixer how many samples the wet path is delayed so it
+    // can delay the dry path by the same amount — prevents comb filtering
+    // at any mix value below 1.0 when oversampling is active.
+    dryWetMixer.setWetLatency(static_cast<float>(oversamplingChain_.getLatencySamples()));
 
     lastTimingPosition_    = -1; // force reconfiguration on next processBlock
     lastOversamplingOrder_ = osOrder;
@@ -142,6 +155,7 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             oversamplingChain_.setOversamplingOrder(currentOsOrder);
             oversamplingChain_.prepare(getSampleRate(), buffer.getNumSamples());
             setLatencySamples(oversamplingChain_.getLatencySamples());
+            dryWetMixer.setWetLatency(static_cast<float>(oversamplingChain_.getLatencySamples()));
         }
 
         if (currentQuality != lastQualityChoice_) {
@@ -177,6 +191,13 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             oversamplingChain_.core().setTimingPosition(
                 static_cast<Models::Sidechain::TimingPosition>(timingChoice));
         }
+
+        // Threshold: convert the 0–10 dial value to a threshold voltage.
+        // thresholdVoltage = (10 − param); at param=0 the threshold is 10 V
+        // (above any FS signal = no compression), at param=10 it is 0 V.
+        const float thresholdParam =
+            apvts.getRawParameterValue(kParamThreshold)->load();
+        oversamplingChain_.core().setThreshold(10.0f - thresholdParam);
     }
 
     juce::dsp::AudioBlock<float> block(buffer);

@@ -39,14 +39,99 @@ void VariableMuStage::prepare(double sampleRate) noexcept
         const double T = 1.0 / sampleRate;
         capK_.prepare(T);
     }
+
+    // DC-blocking HPF coefficient: R = 1 - 2π·fc/fs, fc ≈ 10 Hz.
+    // Models the output coupling capacitor that blocks the large plate-voltage
+    // DC offset (~150–200 V) present in any triode common-cathode stage.
+    // Using 10 Hz preserves all audible content while tracking slow CV-driven
+    // shifts in the quiescent operating point during compression.
+    constexpr double kDcBlockHz = 10.0;
+    constexpr double kTwoPi     = 6.283185307179586;
+    dcBlockCoeff_ = std::clamp(1.0 - kTwoPi * kDcBlockHz / sampleRate, 0.0, 1.0);
+
+    // Pre-compute the quiescent operating point (Vin=0, cv=0) via Newton-Raphson.
+    // This serves two purposes:
+    //  1. Initialise the DC blocker to the quiescent plate voltage so it
+    //     removes DC from sample 0 instead of needing ~1 s to settle.
+    //  2. Provide a perfect warm-start for the NR solver in reset().
+    {
+        using namespace Circuit::Nonlinear;
+        std::array<double, 2> xQ = {cfg_.Vcc * 0.5, 1.5};
+        const double invRp = 1.0 / cfg_.Rp;
+        const double invRk = 1.0 / cfg_.Rk;
+        const auto& tube   = cfg_.tube;
+
+        for (int iter = 0; iter < 200; ++iter) {
+            const double Vp  = xQ[0], Vk = xQ[1];
+            const double Vpk = Vp - Vk;
+            const double Vgk = -Vk; // Vin = 0, cv = 0
+
+            double Ip, gds, gm;
+            triodeIpAndPartials(Vpk, Vgk, tube, Ip, gds, gm);
+
+            const double f1 = (cfg_.Vcc - Vp) * invRp - Ip;
+            const double f2 = Vk * invRk - Ip; // steady-state: no capacitor current
+
+            const double J00 = -invRp - gds;
+            const double J01 =  gds + gm;
+            const double J10 = -gds;
+            const double J11 =  invRk + gds + gm;
+
+            const double det = J00 * J11 - J01 * J10;
+            if (std::abs(det) < 1e-30) break;
+
+            const double inv = 1.0 / det;
+            const double dVp = (-f1 * J11 + f2 * J01) * inv;
+            const double dVk = ( f1 * J10 - f2 * J00) * inv;
+            xQ[0] += dVp;
+            xQ[1] += dVk;
+
+            if (std::sqrt(dVp * dVp + dVk * dVk)
+                    < 1e-9 * (std::sqrt(xQ[0] * xQ[0] + xQ[1] * xQ[1]) + 1.0))
+                break;
+        }
+
+        xQp_ = xQ[0];
+        xQk_ = xQ[1];
+        Vp_quiescent_norm_ = static_cast<double>(
+            UnitScaling::voltsToSample(static_cast<float>(xQp_)));
+
+        // Quiescent small-signal gain Av = dVp/dVin (always negative — inverting).
+        // Derivation: Vin enters Vgk = Vin − Vk.  Sensitivity from the Jacobian:
+        //   J·[dVp; dVk] = [gm; gm]  (both residuals have ∂/∂Vin = gm)
+        //   Cramer: dVp = gm*(J11 − J01)/det = gm*invRk/det
+        double Ip_q, gds_q, gm_q;
+        triodeIpAndPartials(xQp_ - xQk_, -xQk_, tube, Ip_q, gds_q, gm_q);
+        const double J00q = -invRp - gds_q;
+        const double J01q =  gds_q + gm_q;
+        const double J10q = -gds_q;
+        const double J11q =  invRk + gds_q + gm_q;
+        const double detQ = J00q * J11q - J01q * J10q;
+        const double Av   = (std::abs(detQ) > 1e-30) ? gm_q * invRk / detQ : -1.0;
+        invGainMag_ = (std::abs(Av) > 1e-10) ? 1.0 / std::abs(Av) : 1.0;
+    }
+
+    // Warm-start NR from the true quiescent point.
+    x_[0] = xQp_;
+    x_[1] = xQk_;
+
+    // Pre-charge the DC blocker so first-sample output is zero (no startup transient).
+    dcBlockX1_ = Vp_quiescent_norm_;
+    dcBlockY1_ = 0.0;
 }
 
 void VariableMuStage::reset() noexcept
 {
-    x_[0]   = cfg_.Vcc * 0.5;
-    x_[1]   = 1.5;
+    // Warm-start NR from the true quiescent (known after prepare()),
+    // falling back to the cold-start estimate if prepare() hasn't run yet.
+    x_[0]   = (xQp_ > 0.0) ? xQp_ : cfg_.Vcc * 0.5;
+    x_[1]   = xQk_;
     cvBias_ = 0.0;
     capK_.reset();
+    // Pre-charge the DC blocker to the quiescent plate voltage so reset()
+    // also produces zero output on the first sample (no transient).
+    dcBlockX1_ = Vp_quiescent_norm_;
+    dcBlockY1_ = 0.0;
 }
 
 void VariableMuStage::setCv(float cv) noexcept
@@ -137,8 +222,19 @@ float VariableMuStage::processSample(float sample) noexcept
     if (cfg_.Ck > 0.0)
         capK_.update(x_[1]);
 
-    // 4. Return the plate voltage scaled back to normalised sample units.
-    return UnitScaling::voltsToSample(static_cast<float>(x_[0]));
+    // 4. DC-block the plate voltage to remove the quiescent operating-point
+    //    offset (models the output coupling capacitor in the real circuit).
+    //    y[n] = x[n] - x[n-1] + R*y[n-1]  (first-order HPF)
+    const double rawOut = UnitScaling::voltsToSample(static_cast<float>(x_[0]));
+    const double dcY    = rawOut - dcBlockX1_ + dcBlockCoeff_ * dcBlockY1_;
+    dcBlockX1_ = rawOut;
+    dcBlockY1_ = dcY;
+
+    // 5. Normalise to unity small-signal gain and correct the common-cathode
+    //    phase inversion.  Negation flips -180° → 0° so wet and dry are in
+    //    phase at all mix values.  invGainMag_ = 1/|Av_quiescent| scales the
+    //    output so CV=0 → unity gain, higher CV → gain < 1 (compression).
+    return static_cast<float>(-invGainMag_ * dcY);
 }
 
 } // namespace Models

@@ -78,8 +78,13 @@ void Fairchild670Core::processStereo(float inL, float inR,
                                      float& outL, float& outR) noexcept
 {
     // 1. Run sidechain detectors on both channels.
-    const float cvL = detectorL_.processSample(inL);
-    const float cvR = detectorR_.processSample(inR);
+    const float rawCvL = detectorL_.processSample(inL);
+    const float rawCvR = detectorR_.processSample(inR);
+
+    // 1b. Apply threshold: subtract the threshold voltage and clamp to zero.
+    //     Below threshold the effective CV is 0 V (no gain reduction).
+    const float cvL = std::max(0.0f, rawCvL - thresholdVoltage_);
+    const float cvR = std::max(0.0f, rawCvR - thresholdVoltage_);
 
     // 2. Compute the final CV per channel based on link mode.
     float finalCvL, finalCvR;
