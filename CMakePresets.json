@@ -7,37 +7,36 @@
   },
   "configurePresets": [
     {
-      "name": "vs2026-x64",
-      "displayName": "Visual Studio 2026 (x64)",
-      "generator": "Visual Studio 18 2026",
-      "binaryDir": "${sourceDir}/build/vs2026-x64",
-      "architecture": {
-        "value": "x64"
-      },
+      "name": "base",
+      "displayName": "Base Configuration",
       "cacheVariables": {
         "CMAKE_CXX_STANDARD": "17",
         "CMAKE_CXX_STANDARD_REQUIRED": "ON"
+      }
+    },
+    {
+      "name": "base-release",
+      "displayName": "Base Release Configuration",
+      "inherits": ["base"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG"
       }
     },
     {
       "name": "linux-release",
       "displayName": "Linux Release",
+      "inherits": ["base-release"],
       "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/build/linux-release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_STANDARD": "17",
-        "CMAKE_CXX_STANDARD_REQUIRED": "ON"
-      }
+      "binaryDir": "${sourceDir}/build/linux-release"
     },
     {
       "name": "macos-x86_64-release",
       "displayName": "macOS Intel Release (x86_64)",
+      "inherits": ["base-release"],
       "generator": "Xcode",
       "binaryDir": "${sourceDir}/build/macos-x86_64-release",
       "cacheVariables": {
-        "CMAKE_CXX_STANDARD": "17",
-        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
         "CMAKE_OSX_ARCHITECTURES": "x86_64",
         "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0"
       }
@@ -45,13 +44,35 @@
     {
       "name": "macos-arm64-release",
       "displayName": "macOS Apple Silicon Release (arm64)",
+      "inherits": ["base-release"],
       "generator": "Xcode",
       "binaryDir": "${sourceDir}/build/macos-arm64-release",
       "cacheVariables": {
-        "CMAKE_CXX_STANDARD": "17",
-        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0"
+      }
+    },
+    {
+      "name": "vs2026-x64-base",
+      "displayName": "Visual Studio 2026 (x64) Base",
+      "inherits": ["base"],
+      "generator": "Visual Studio 18 2026",
+      "binaryDir": "${sourceDir}/build/vs2026-x64",
+      "architecture": {
+        "value": "x64"
+      }
+    },
+    {
+      "name": "vs2026-x64-release",
+      "displayName": "Visual Studio 2026 (x64) Release",
+      "inherits": ["vs2026-x64-base", "base-release"]
+    },
+    {
+      "name": "vs2026-x64-debug",
+      "displayName": "Visual Studio 2026 (x64) Debug",
+      "inherits": ["vs2026-x64-base"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     }
   ],
@@ -59,49 +80,29 @@
     {
       "name": "debug",
       "displayName": "Build Debug",
-      "configurePreset": "vs2026-x64",
-      "configuration": "Debug",
-      "targets": [
-        "phu-fair-kid-67_VST3"
-      ]
+      "configurePreset": "vs2026-x64-debug",
+      "configuration": "Debug"
     },
     {
       "name": "release",
       "displayName": "Build Release",
-      "configurePreset": "vs2026-x64",
-      "configuration": "Release",
-      "targets": [
-        "phu-fair-kid-67_VST3"
-      ]
+      "configurePreset": "vs2026-x64-release",
+      "configuration": "Release"
     },
     {
       "name": "linux-build",
       "displayName": "Linux Build",
-      "configurePreset": "linux-release",
-      "configuration": "Release",
-      "targets": [
-        "phu-fair-kid-67_VST3"
-      ]
+      "configurePreset": "linux-release"
     },
     {
       "name": "macos-x86_64-build",
       "displayName": "macOS Intel Build (x86_64)",
-      "configurePreset": "macos-x86_64-release",
-      "configuration": "Release",
-      "targets": [
-        "phu-fair-kid-67_VST3",
-        "phu-fair-kid-67_AU"
-      ]
+      "configurePreset": "macos-x86_64-release"
     },
     {
       "name": "macos-arm64-build",
       "displayName": "macOS Apple Silicon Build (arm64)",
-      "configurePreset": "macos-arm64-release",
-      "configuration": "Release",
-      "targets": [
-        "phu-fair-kid-67_VST3",
-        "phu-fair-kid-67_AU"
-      ]
+      "configurePreset": "macos-arm64-release"
     }
   ]
 }
