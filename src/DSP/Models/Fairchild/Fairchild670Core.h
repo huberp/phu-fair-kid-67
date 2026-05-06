@@ -10,7 +10,8 @@ namespace Models {
 /// Stereo link mode for the Fairchild 670 sidechain.
 enum class LinkMode {
     Independent, ///< L and R channels detect and compress independently.
-    Linked       ///< Shared sidechain envelope drives both channels.
+    Linked,      ///< Shared sidechain envelope drives both channels.
+    MidSide      ///< Lateral/Vertical mode: sidechain driven by the Mid (L+R) signal only.
 };
 
 /// Envelope combination strategy used when LinkMode::Linked is active.
@@ -98,14 +99,19 @@ public:
     }
 
     /// Set the compression threshold as a voltage (V) subtracted from the raw
-    /// detector CV before it is applied to the gain stages.
+    /// detector CV before it is applied to the left gain stage.
     ///
-    /// effectiveCv = max(0, detectorCv − thresholdVoltage)
+    /// effectiveCvL = max(0, detectorCvL − thresholdVoltage)
     ///
     /// A value of 10 V places the threshold above any possible full-scale signal
-    /// (no compression); 0 V means the stage always compresses.  The caller is
-    /// responsible for mapping the UI parameter value to voltage.
-    void setThreshold(float thresholdVoltage) noexcept { thresholdVoltage_ = thresholdVoltage; }
+    /// (no compression); 0 V means the stage always compresses.
+    void setThresholdLeft(float thresholdVoltage) noexcept { thresholdVoltageL_ = thresholdVoltage; }
+
+    /// Set the compression threshold as a voltage (V) subtracted from the raw
+    /// detector CV before it is applied to the right gain stage.
+    ///
+    /// effectiveCvR = max(0, detectorCvR − thresholdVoltage)
+    void setThresholdRight(float thresholdVoltage) noexcept { thresholdVoltageR_ = thresholdVoltage; }
 
     /// Adjust the NR iteration budget on both variable-mu gain stages.
     ///
@@ -140,8 +146,9 @@ public:
 
 private:
     Fairchild670CoreConfig cfg_;
-    double sampleRate_      = 44100.0;
-    float  thresholdVoltage_ = 10.0f; ///< Threshold in volts; 10 V = no compression.
+    double sampleRate_       = 44100.0;
+    float  thresholdVoltageL_ = 10.0f; ///< Left-channel threshold in volts; 10 V = no compression.
+    float  thresholdVoltageR_ = 10.0f; ///< Right-channel threshold in volts; 10 V = no compression.
 
     VariableMuStage              stageL_;
     VariableMuStage              stageR_;

@@ -35,15 +35,26 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     void setStateInformation(const void* data, int sizeInBytes) override;
 
     /// Parameter IDs (stable string constants shared with the editor).
-    static constexpr const char* kParamInputTrimDb     = "inputTrimDb";
-    static constexpr const char* kParamOutputTrimDb    = "outputTrimDb";
-    static constexpr const char* kParamMix             = "mix";
-    static constexpr const char* kParamOversampling    = "oversampling";
-    static constexpr const char* kParamQuality         = "quality";
-    static constexpr const char* kParamBypass          = "bypass";
-    static constexpr const char* kParamLinkMode        = "linkMode";
-    static constexpr const char* kParamTimingPosition  = "timingPosition";
-    static constexpr const char* kParamThreshold       = "threshold";
+    static constexpr const char* kParamInputTrimLeftDb   = "inputTrimLeftDb";
+    static constexpr const char* kParamInputTrimRightDb  = "inputTrimRightDb";
+    static constexpr const char* kParamOutputTrimLeftDb  = "outputTrimLeftDb";
+    static constexpr const char* kParamOutputTrimRightDb = "outputTrimRightDb";
+    static constexpr const char* kParamMix               = "mix";
+    static constexpr const char* kParamOversampling      = "oversampling";
+    static constexpr const char* kParamQuality           = "quality";
+    static constexpr const char* kParamBypass            = "bypass";
+    static constexpr const char* kParamLinkMode          = "linkMode";
+    static constexpr const char* kParamTimingPosition    = "timingPosition";
+    static constexpr const char* kParamThresholdLeft     = "thresholdLeft";
+    static constexpr const char* kParamThresholdRight    = "thresholdRight";
+    static constexpr const char* kParamStereoMode        = "stereoMode";
+    static constexpr const char* kParamSoloLeft          = "soloLeft";
+    static constexpr const char* kParamSoloRight         = "soloRight";
+    /// Read-only meter parameters (written by the processor each block).
+    static constexpr const char* kParamMeterGainReductionL = "meterGainReductionL";
+    static constexpr const char* kParamMeterGainReductionR = "meterGainReductionR";
+    static constexpr const char* kParamMeterOutputL        = "meterOutputL";
+    static constexpr const char* kParamMeterOutputR        = "meterOutputR";
 
     juce::AudioProcessorValueTreeState apvts;
 
@@ -56,8 +67,10 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     }
 
   private:
-    juce::dsp::Gain<float>        inputGain;
-    juce::dsp::Gain<float>        outputGain;
+    juce::dsp::Gain<float>        inputGainL_;
+    juce::dsp::Gain<float>        inputGainR_;
+    juce::dsp::Gain<float>        outputGainL_;
+    juce::dsp::Gain<float>        outputGainR_;
     // Constructed with 512-sample max latency so the dry-path delay line can
     // compensate for the oversampling FIR latency (up to ~200 samples at 8×).
     juce::dsp::DryWetMixer<float> dryWetMixer{512};

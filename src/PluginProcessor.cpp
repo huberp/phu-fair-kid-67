@@ -14,12 +14,22 @@ PhuFairKid67AudioProcessor::createParameterLayout() {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{kParamInputTrimDb, 1}, "Input Trim",
+        juce::ParameterID{kParamInputTrimLeftDb, 1}, "Input Trim Left",
         juce::NormalisableRange<float>(-20.0f, 20.0f, 0.1f), 0.0f,
         juce::AudioParameterFloatAttributes{}.withLabel("dB")));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{kParamOutputTrimDb, 1}, "Output Trim",
+        juce::ParameterID{kParamInputTrimRightDb, 1}, "Input Trim Right",
+        juce::NormalisableRange<float>(-20.0f, 20.0f, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes{}.withLabel("dB")));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamOutputTrimLeftDb, 1}, "Output Trim Left",
+        juce::NormalisableRange<float>(-20.0f, 20.0f, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes{}.withLabel("dB")));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamOutputTrimRightDb, 1}, "Output Trim Right",
         juce::NormalisableRange<float>(-20.0f, 20.0f, 0.1f), 0.0f,
         juce::AudioParameterFloatAttributes{}.withLabel("dB")));
 
@@ -40,19 +50,55 @@ PhuFairKid67AudioProcessor::createParameterLayout() {
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{kParamLinkMode, 1}, "Link Mode",
-        juce::StringArray{"Independent", "Linked Max", "Linked Avg"}, 1));
+        juce::StringArray{"Independent", "Linked Max", "Linked Avg", "Mid/Side (Vert/Lat)"}, 1));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{kParamTimingPosition, 1}, "Timing",
         juce::StringArray{"1", "2", "3", "4", "5", "6"}, 0));
 
-    // Threshold: 0 = no compression (threshold above any possible signal),
+    // Threshold per channel: 0 = no compression (threshold above any possible signal),
     // 10 = maximum sensitivity (threshold at 0 V, always compressing).
     // Maps to thresholdVoltage = (10 - param) volts, matching the detector's
     // 0–10 V full-scale output range.  Default 5 ≈ -6 dBFS onset.
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{kParamThreshold, 1}, "Threshold",
+        juce::ParameterID{kParamThresholdLeft, 1}, "Threshold Left",
         juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f), 5.0f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamThresholdRight, 1}, "Threshold Right",
+        juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f), 5.0f));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{kParamStereoMode, 1}, "Stereo Mode",
+        juce::StringArray{"Stereo", "Mid/Side"}, 0));
+
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{kParamSoloLeft, 1}, "Solo Left", false));
+
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{kParamSoloRight, 1}, "Solo Right", false));
+
+    // Read-only meter parameters: floored at -60 dB, displayed by the editor.
+    // The processor writes these each block; they should not be automated.
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamMeterGainReductionL, 1}, "GR Meter Left",
+        juce::NormalisableRange<float>(-60.0f, 0.0f, 0.1f), -60.0f,
+        juce::AudioParameterFloatAttributes{}.withLabel("dB")));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamMeterGainReductionR, 1}, "GR Meter Right",
+        juce::NormalisableRange<float>(-60.0f, 0.0f, 0.1f), -60.0f,
+        juce::AudioParameterFloatAttributes{}.withLabel("dB")));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamMeterOutputL, 1}, "Output Meter Left",
+        juce::NormalisableRange<float>(-60.0f, 0.0f, 0.1f), -60.0f,
+        juce::AudioParameterFloatAttributes{}.withLabel("dBFS")));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamMeterOutputR, 1}, "Output Meter Right",
+        juce::NormalisableRange<float>(-60.0f, 0.0f, 0.1f), -60.0f,
+        juce::AudioParameterFloatAttributes{}.withLabel("dBFS")));
 
     return layout;
 }
@@ -78,11 +124,15 @@ void PhuFairKid67AudioProcessor::prepareToPlay(double sampleRate, int samplesPer
                                 static_cast<juce::uint32>(samplesPerBlock),
                                 numChannels};
 
-    inputGain.prepare(spec);
-    inputGain.setRampDurationSeconds(0.005);
+    inputGainL_.prepare(spec);
+    inputGainL_.setRampDurationSeconds(0.005);
+    inputGainR_.prepare(spec);
+    inputGainR_.setRampDurationSeconds(0.005);
 
-    outputGain.prepare(spec);
-    outputGain.setRampDurationSeconds(0.005);
+    outputGainL_.prepare(spec);
+    outputGainL_.setRampDurationSeconds(0.005);
+    outputGainR_.prepare(spec);
+    outputGainR_.setRampDurationSeconds(0.005);
 
     dryWetMixer.prepare(spec);
 
@@ -131,10 +181,14 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     const float mixValue =
         isBypassed ? 0.0f : apvts.getRawParameterValue(kParamMix)->load();
 
-    inputGain.setGainDecibels(
-        apvts.getRawParameterValue(kParamInputTrimDb)->load());
-    outputGain.setGainDecibels(
-        apvts.getRawParameterValue(kParamOutputTrimDb)->load());
+    inputGainL_.setGainDecibels(
+        apvts.getRawParameterValue(kParamInputTrimLeftDb)->load());
+    inputGainR_.setGainDecibels(
+        apvts.getRawParameterValue(kParamInputTrimRightDb)->load());
+    outputGainL_.setGainDecibels(
+        apvts.getRawParameterValue(kParamOutputTrimLeftDb)->load());
+    outputGainR_.setGainDecibels(
+        apvts.getRawParameterValue(kParamOutputTrimRightDb)->load());
     dryWetMixer.setWetMixProportion(mixValue);
 
     // ── Detect oversampling / quality parameter changes ───────────────────────
@@ -178,9 +232,12 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 oversamplingChain_.core().setLinkMode(Models::LinkMode::Linked);
                 oversamplingChain_.core().setEnvelopeStrategy(Models::LinkedEnvelopeStrategy::Max);
                 break;
-            default: // 2 — Linked Avg
+            case 2: // Linked Avg
                 oversamplingChain_.core().setLinkMode(Models::LinkMode::Linked);
                 oversamplingChain_.core().setEnvelopeStrategy(Models::LinkedEnvelopeStrategy::Average);
+                break;
+            default: // 3 — Mid/Side (Vert/Lat)
+                oversamplingChain_.core().setLinkMode(Models::LinkMode::MidSide);
                 break;
         }
 
@@ -192,27 +249,109 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 static_cast<Models::Sidechain::TimingPosition>(timingChoice));
         }
 
-        // Threshold: convert the 0–10 dial value to a threshold voltage.
+        // Per-channel threshold: convert the 0–10 dial value to a threshold voltage.
         // thresholdVoltage = (10 − param); at param=0 the threshold is 10 V
         // (above any FS signal = no compression), at param=10 it is 0 V.
-        const float thresholdParam =
-            apvts.getRawParameterValue(kParamThreshold)->load();
-        oversamplingChain_.core().setThreshold(10.0f - thresholdParam);
+        const float thresholdLeft =
+            apvts.getRawParameterValue(kParamThresholdLeft)->load();
+        const float thresholdRight =
+            apvts.getRawParameterValue(kParamThresholdRight)->load();
+        oversamplingChain_.core().setThresholdLeft(10.0f - thresholdLeft);
+        oversamplingChain_.core().setThresholdRight(10.0f - thresholdRight);
     }
 
     juce::dsp::AudioBlock<float> block(buffer);
     dryWetMixer.pushDrySamples(block);
 
-    juce::dsp::ProcessContextReplacing<float> context(block);
-    inputGain.process(context);
+    // ── Per-channel input trim ────────────────────────────────────────────────
+    {
+        auto leftBlock  = block.getSingleChannelBlock(0);
+        auto rightBlock = block.getSingleChannelBlock(1);
+        juce::dsp::ProcessContextReplacing<float> ctxL(leftBlock);
+        juce::dsp::ProcessContextReplacing<float> ctxR(rightBlock);
+        inputGainL_.process(ctxL);
+        inputGainR_.process(ctxR);
+    }
+
+    // ── Stereo Mode: optionally convert L/R → M/S before compression ─────────
+    // Encoding uses a 0.5 factor: M = (L+R)/2, S = (L-R)/2.
+    // This keeps the intermediate M/S signals within the ±1.0 normalised range
+    // even when L and R are both at full scale (e.g. a mono signal).
+    // The decode step (M+S → L, M-S → R) restores unity gain end-to-end.
+    const bool isMidSideMode =
+        static_cast<int>(apvts.getRawParameterValue(kParamStereoMode)->load()) == 1;
+    if (isMidSideMode && buffer.getNumChannels() >= 2) {
+        auto* dataL = buffer.getWritePointer(0);
+        auto* dataR = buffer.getWritePointer(1);
+        for (int i = 0; i < buffer.getNumSamples(); ++i) {
+            const float m = (dataL[i] + dataR[i]) * 0.5f;
+            const float s = (dataL[i] - dataR[i]) * 0.5f;
+            dataL[i] = m;
+            dataR[i] = s;
+        }
+    }
 
     // Process through the Fairchild 670 core with optional oversampling.
     oversamplingChain_.core().resetPeakMeters();
     oversamplingChain_.process(buffer);
 
-    outputGain.process(context);
+    // ── Stereo Mode: convert M/S → L/R after compression ─────────────────────
+    if (isMidSideMode && buffer.getNumChannels() >= 2) {
+        auto* dataM = buffer.getWritePointer(0);
+        auto* dataS = buffer.getWritePointer(1);
+        for (int i = 0; i < buffer.getNumSamples(); ++i) {
+            const float l = dataM[i] + dataS[i];
+            const float r = dataM[i] - dataS[i];
+            dataM[i] = l;
+            dataS[i] = r;
+        }
+    }
+
+    // ── Per-channel output trim ───────────────────────────────────────────────
+    {
+        auto leftBlock  = block.getSingleChannelBlock(0);
+        auto rightBlock = block.getSingleChannelBlock(1);
+        juce::dsp::ProcessContextReplacing<float> ctxL(leftBlock);
+        juce::dsp::ProcessContextReplacing<float> ctxR(rightBlock);
+        outputGainL_.process(ctxL);
+        outputGainR_.process(ctxR);
+    }
+
+    // ── Solo ─────────────────────────────────────────────────────────────────
+    {
+        const bool soloLeft  = apvts.getRawParameterValue(kParamSoloLeft)->load()  > 0.5f;
+        const bool soloRight = apvts.getRawParameterValue(kParamSoloRight)->load() > 0.5f;
+        if (soloLeft && !soloRight) {
+            // Mute right, pass only left.
+            buffer.clear(1, 0, buffer.getNumSamples());
+        } else if (soloRight && !soloLeft) {
+            // Mute left, pass only right.
+            buffer.clear(0, 0, buffer.getNumSamples());
+        }
+    }
 
     dryWetMixer.mixWetSamples(block);
+
+    // ── Update read-only meter parameters ────────────────────────────────────
+    {
+        const auto m = oversamplingChain_.core().meters();
+
+        // Gain reduction: inPeak / outPeak in dB (negative = compression).
+        constexpr float kFloorDb = -60.0f;
+        auto peakToDb = [kFloorDb](float peak) -> float {
+            return peak > 0.0f ? std::max(kFloorDb, juce::Decibels::gainToDecibels(peak))
+                               : kFloorDb;
+        };
+        auto grDb = [&](float inPeak, float outPeak) -> float {
+            if (inPeak <= 0.0f || outPeak <= 0.0f) return kFloorDb;
+            return std::max(kFloorDb, std::min(0.0f, peakToDb(outPeak) - peakToDb(inPeak)));
+        };
+
+        apvts.getRawParameterValue(kParamMeterGainReductionL)->store(grDb(m.inPeakL, m.outPeakL));
+        apvts.getRawParameterValue(kParamMeterGainReductionR)->store(grDb(m.inPeakR, m.outPeakR));
+        apvts.getRawParameterValue(kParamMeterOutputL)->store(peakToDb(m.outPeakL));
+        apvts.getRawParameterValue(kParamMeterOutputR)->store(peakToDb(m.outPeakR));
+    }
 }
 
 bool PhuFairKid67AudioProcessor::hasEditor() const { return true; }
