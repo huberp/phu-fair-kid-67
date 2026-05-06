@@ -274,6 +274,10 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     // ── Stereo Mode: optionally convert L/R → M/S before compression ─────────
+    // Encoding uses a 0.5 factor: M = (L+R)/2, S = (L-R)/2.
+    // This keeps the intermediate M/S signals within the ±1.0 normalised range
+    // even when L and R are both at full scale (e.g. a mono signal).
+    // The decode step (M+S → L, M-S → R) restores unity gain end-to-end.
     const bool isMidSideMode =
         static_cast<int>(apvts.getRawParameterValue(kParamStereoMode)->load()) == 1;
     if (isMidSideMode && buffer.getNumChannels() >= 2) {

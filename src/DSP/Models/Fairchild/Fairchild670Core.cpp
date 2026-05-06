@@ -87,6 +87,8 @@ void Fairchild670Core::processStereo(float inL, float inR,
     float effectiveCvL, effectiveCvR;
     if (cfg_.linkMode == LinkMode::MidSide) {
         const float mid = (rawCvL + rawCvR) * 0.5f;
+        // Use the average of the two per-channel thresholds so that the single
+        // Mid-derived CV is compared against a symmetrically blended threshold.
         const float threshMid = (thresholdVoltageL_ + thresholdVoltageR_) * 0.5f;
         const float cvMid = std::max(0.0f, mid - threshMid);
         effectiveCvL = effectiveCvR = cvMid;
