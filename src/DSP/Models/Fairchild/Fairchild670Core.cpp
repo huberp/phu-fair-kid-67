@@ -81,22 +81,36 @@ void Fairchild670Core::processStereo(float inL, float inR,
     const float rawCvL = detectorL_.processSample(inL);
     const float rawCvR = detectorR_.processSample(inR);
 
-    // 1b. Apply threshold: subtract the threshold voltage and clamp to zero.
-    //     Below threshold the effective CV is 0 V (no gain reduction).
-    const float cvL = std::max(0.0f, rawCvL - thresholdVoltage_);
-    const float cvR = std::max(0.0f, rawCvR - thresholdVoltage_);
+    // 1b. For Mid/Side link mode, derive the sidechain CV from the Mid signal.
+    //     In the classic 670 Lat/Vert mode the lateral (sum) component drives
+    //     both sidechain detectors, so both channels receive the same CV.
+    float effectiveCvL, effectiveCvR;
+    if (cfg_.linkMode == LinkMode::MidSide) {
+        const float mid = (rawCvL + rawCvR) * 0.5f;
+        const float threshMid = (thresholdVoltageL_ + thresholdVoltageR_) * 0.5f;
+        const float cvMid = std::max(0.0f, mid - threshMid);
+        effectiveCvL = effectiveCvR = cvMid;
+    } else {
+        // Apply per-channel thresholds: subtract the threshold voltage and clamp to zero.
+        //     Below threshold the effective CV is 0 V (no gain reduction).
+        effectiveCvL = std::max(0.0f, rawCvL - thresholdVoltageL_);
+        effectiveCvR = std::max(0.0f, rawCvR - thresholdVoltageR_);
+    }
 
     // 2. Compute the final CV per channel based on link mode.
     float finalCvL, finalCvR;
     if (cfg_.linkMode == LinkMode::Independent) {
-        finalCvL = cvL;
-        finalCvR = cvR;
+        finalCvL = effectiveCvL;
+        finalCvR = effectiveCvR;
+    } else if (cfg_.linkMode == LinkMode::MidSide) {
+        // Already merged above; both channels carry the mid CV.
+        finalCvL = finalCvR = effectiveCvL;
     } else {
         float linked;
         if (cfg_.envelopeStrategy == LinkedEnvelopeStrategy::Max) {
-            linked = std::max(cvL, cvR);
+            linked = std::max(effectiveCvL, effectiveCvR);
         } else { // Average
-            linked = (cvL + cvR) * 0.5f;
+            linked = (effectiveCvL + effectiveCvR) * 0.5f;
         }
         finalCvL = finalCvR = linked;
     }
