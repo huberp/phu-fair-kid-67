@@ -32,6 +32,24 @@ static float sineAt(float amplitude, int i, double freqHz, double sampleRate)
             * static_cast<float>(i) / static_cast<float>(sampleRate));
 }
 
+static float measureCoreRMS(Models::Fairchild670Core& core,
+                            float amplitude, double freqHz,
+                            double sampleRate = 44100.0,
+                            int numSamples = 4096)
+{
+    double sumSq = 0.0;
+    float outL = 0.0f, outR = 0.0f;
+
+    for (int i = 0; i < numSamples; ++i) {
+        const float in = sineAt(amplitude, i, freqHz, sampleRate);
+        core.processStereo(in, in, outL, outR);
+        REQUIRE(std::isfinite(outL));
+        sumSq += static_cast<double>(outL) * static_cast<double>(outL);
+    }
+
+    return static_cast<float>(std::sqrt(sumSq / numSamples));
+}
+
 // ── Stability ─────────────────────────────────────────────────────────────────
 
 TEST_CASE("Fairchild670Core: stereo output is always finite", "[670core][stability]")
@@ -274,6 +292,32 @@ TEST_CASE("Fairchild670Core: linked/avg CV is strictly between independent L and
     const float hi = std::max(cvL_indep, cvR_indep);
     REQUIRE(cvAvg >= lo - 1e-4f);
     REQUIRE(cvAvg <= hi + 1e-4f);
+}
+
+TEST_CASE("Fairchild670Core: transformer coloration is in the wet output path",
+          "[670core][transformer]")
+{
+    constexpr double sr       = 96000.0;
+    constexpr float  amplitude = 0.02f;
+    constexpr double testFreq = 6000.0;
+
+    Models::Fairchild670CoreConfig wideCfg;
+    wideCfg.transformerCfg.hpfCutoffHz = 5.0;
+    wideCfg.transformerCfg.lpfCutoffHz = 20000.0;
+    wideCfg.transformerCfg.drive       = 1.0f;
+
+    Models::Fairchild670CoreConfig darkCfg = wideCfg;
+    darkCfg.transformerCfg.lpfCutoffHz = 1200.0;
+
+    auto wideCore = makeWarmedCore(wideCfg, sr);
+    auto darkCore = makeWarmedCore(darkCfg, sr);
+
+    const float rmsWide = measureCoreRMS(wideCore, amplitude, testFreq, sr);
+    const float rmsDark = measureCoreRMS(darkCore, amplitude, testFreq, sr);
+
+    INFO("wide transformer RMS=" << rmsWide);
+    INFO("dark transformer RMS=" << rmsDark);
+    REQUIRE(rmsDark < rmsWide * 0.75f);
 }
 
 // ── Meter hooks ───────────────────────────────────────────────────────────────

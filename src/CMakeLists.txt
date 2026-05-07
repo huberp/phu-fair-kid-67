@@ -29,6 +29,8 @@ target_sources(phu-fair-kid-67 PRIVATE
     DSP/Models/Fairchild/Fairchild670Core.h
     DSP/Models/Fairchild/VariableMuStage.cpp
     DSP/Models/Fairchild/VariableMuStage.h
+    DSP/Models/Transformer/TransformerLinear.cpp
+    DSP/Models/Transformer/TransformerLinear.h
     DSP/Models/Sidechain/RectifierDetector.cpp
     DSP/Models/Sidechain/RectifierDetector.h
     DSP/Models/Sidechain/TimingNetwork.cpp
