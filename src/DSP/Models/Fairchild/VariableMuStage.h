@@ -112,6 +112,10 @@ public:
     /// Takes effect on the next processSample() call; no prepare() needed.
     void setNRConfig(Circuit::Nonlinear::NRConfig cfg) noexcept;
 
+    /// Change the cathode bypass capacitance at runtime.
+    /// Takes effect immediately and preserves a quiescent capacitor state.
+    void setCathodeBypassCapacitance(double farads) noexcept;
+
     /// Return the current (clamped) CV bias in use (V).
     [[nodiscard]] float cv() const noexcept { return static_cast<float>(cvBias_); }
 
@@ -152,6 +156,7 @@ private:
     double xQp_ = 0.0;             ///< Quiescent plate voltage (V); 0 before prepare().
     double xQk_ = 1.5;             ///< Quiescent cathode voltage (V).
     double Vp_quiescent_norm_ = 0.0; ///< Quiescent plate voltage in normalised units.
+    double sampleRate_ = 0.0;      ///< Last prepared sample rate (Hz); 0 before prepare().
 
     // ── Output gain normalisation ──────────────────────────────────────────
     // The common-cathode triode is inverting (Vout = −|Av|·Vin) and has a
@@ -163,6 +168,8 @@ private:
     // Computed from the quiescent small-signal Jacobian in prepare().
     // Default 1.0 = no-op safe value before prepare() is called.
     double invGainMag_ = 1.0; ///< 1 / |Av_quiescent|; multiplied (with sign flip) into output.
+
+    void updateCathodeBypassCompanion(double cathodeVoltage) noexcept;
 };
 
 } // namespace Models
