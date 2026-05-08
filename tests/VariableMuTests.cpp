@@ -238,6 +238,29 @@ TEST_CASE("VariableMuStage: maximum CV produces measurable attenuation vs CV=0",
     REQUIRE(gainAt0 > gainAtMax * 1.41f);
 }
 
+TEST_CASE("VariableMuStage: cathode bypass capacitance can be changed safely at runtime",
+          "[variablemu][bypass][runtime]")
+{
+    constexpr double sr      = 44100.0;
+    constexpr float  amplitude = 0.01f;
+
+    Models::VariableMuStage stage;
+    stage.prepare(sr);
+    stage.setCv(0.0f);
+
+    const float ptpNoBypass = measurePeakToPeak(stage, amplitude, 1000.0, sr, 5);
+
+    stage.setCathodeBypassCapacitance(47e-6);
+    stage.reset();
+    stage.setCv(0.0f);
+    const float ptpWithBypass = measurePeakToPeak(stage, amplitude, 1000.0, sr, 5);
+
+    INFO("ptp without Ck=" << ptpNoBypass);
+    INFO("ptp with Ck=" << ptpWithBypass);
+    REQUIRE(std::isfinite(ptpWithBypass));
+    REQUIRE(ptpWithBypass > ptpNoBypass);
+}
+
 // ── No discontinuities: instantaneous CV change is smooth ─────────────────────
 
 TEST_CASE("VariableMuStage: output has no large jump on CV step change",

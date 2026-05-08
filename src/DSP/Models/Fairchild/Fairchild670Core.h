@@ -1,6 +1,7 @@
 #pragma once
 
 #include "VariableMuStage.h"
+#include "../Transformer/TransformerLinear.h"
 #include "../Sidechain/RectifierDetector.h"
 
 #include <algorithm>
@@ -60,6 +61,9 @@ struct Fairchild670CoreConfig {
 
     /// Variable-mu gain stage configuration (same circuit for L and R).
     VariableMuStageConfig stageCfg;
+
+    /// Output transformer coloration configuration (same circuit for L and R).
+    TransformerLinearConfig transformerCfg;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,6 +125,9 @@ public:
     /// on the next processStereo() call; no prepare() is required.
     void setQuality(ProcessingQuality quality) noexcept;
 
+    /// Set the cathode bypass capacitance on both variable-mu stages.
+    void setCathodeBypassCapacitance(double farads) noexcept;
+
     /// Change the sidechain timing preset and recompute detector coefficients.
     /// The timing state of both detectors is preserved (attack/release smoothing
     /// continues from the current CV level with the new time constants).
@@ -152,6 +159,8 @@ private:
 
     VariableMuStage              stageL_;
     VariableMuStage              stageR_;
+    TransformerLinear            transformerL_;
+    TransformerLinear            transformerR_;
     Sidechain::RectifierDetector detectorL_;
     Sidechain::RectifierDetector detectorR_;
 

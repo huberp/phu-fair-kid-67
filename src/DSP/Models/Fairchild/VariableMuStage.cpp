@@ -35,10 +35,7 @@ VariableMuStage::VariableMuStage(VariableMuStageConfig cfg) noexcept
 
 void VariableMuStage::prepare(double sampleRate) noexcept
 {
-    if (cfg_.Ck > 0.0) {
-        const double T = 1.0 / sampleRate;
-        capK_.prepare(T);
-    }
+    sampleRate_ = sampleRate;
 
     // DC-blocking HPF coefficient: R = 1 - 2π·fc/fs, fc ≈ 10 Hz.
     // Models the output coupling capacitor that blocks the large plate-voltage
@@ -114,6 +111,7 @@ void VariableMuStage::prepare(double sampleRate) noexcept
     // Warm-start NR from the true quiescent point.
     x_[0] = xQp_;
     x_[1] = xQk_;
+    updateCathodeBypassCompanion(xQk_);
 
     // Pre-charge the DC blocker so first-sample output is zero (no startup transient).
     dcBlockX1_ = Vp_quiescent_norm_;
@@ -127,7 +125,7 @@ void VariableMuStage::reset() noexcept
     x_[0]   = (xQp_ > 0.0) ? xQp_ : cfg_.Vcc * 0.5;
     x_[1]   = xQk_;
     cvBias_ = 0.0;
-    capK_.reset();
+    updateCathodeBypassCompanion(x_[1]);
     // Pre-charge the DC blocker to the quiescent plate voltage so reset()
     // also produces zero output on the first sample (no transient).
     dcBlockX1_ = Vp_quiescent_norm_;
@@ -146,6 +144,12 @@ void VariableMuStage::setCv(float cv) noexcept
 void VariableMuStage::setNRConfig(Circuit::Nonlinear::NRConfig cfg) noexcept
 {
     nr_.setConfig(std::move(cfg));
+}
+
+void VariableMuStage::setCathodeBypassCapacitance(double farads) noexcept
+{
+    cfg_.Ck = std::max(0.0, farads);
+    updateCathodeBypassCompanion(x_[1]);
 }
 
 // ── Per-sample processing ─────────────────────────────────────────────────────
@@ -235,6 +239,22 @@ float VariableMuStage::processSample(float sample) noexcept
     //    phase at all mix values.  invGainMag_ = 1/|Av_quiescent| scales the
     //    output so CV=0 → unity gain, higher CV → gain < 1 (compression).
     return static_cast<float>(-invGainMag_ * dcY);
+}
+
+void VariableMuStage::updateCathodeBypassCompanion(double cathodeVoltage) noexcept
+{
+    capK_.farads = cfg_.Ck;
+
+    if (cfg_.Ck <= 0.0 || sampleRate_ <= 0.0) {
+        capK_.Geq = 0.0;
+        capK_.Ieq = 0.0;
+        return;
+    }
+
+    capK_.prepare(1.0 / sampleRate_);
+    // Preserve the current cathode DC operating point with zero instantaneous
+    // capacitor current so runtime parameter changes do not inject a large step.
+    capK_.Ieq = capK_.Geq * cathodeVoltage;
 }
 
 } // namespace Models

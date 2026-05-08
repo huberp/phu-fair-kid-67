@@ -13,6 +13,8 @@ Fairchild670Core::Fairchild670Core(Fairchild670CoreConfig cfg) noexcept
     : cfg_(std::move(cfg))
     , stageL_(cfg_.stageCfg)
     , stageR_(cfg_.stageCfg)
+    , transformerL_(cfg_.transformerCfg)
+    , transformerR_(cfg_.transformerCfg)
     , detectorL_(cfg_.detectorCfg)
     , detectorR_(cfg_.detectorCfg)
 {}
@@ -24,6 +26,8 @@ void Fairchild670Core::prepare(double sampleRate) noexcept
     sampleRate_ = sampleRate;
     stageL_.prepare(sampleRate);
     stageR_.prepare(sampleRate);
+    transformerL_.prepare(sampleRate);
+    transformerR_.prepare(sampleRate);
     detectorL_.prepare(sampleRate);
     detectorR_.prepare(sampleRate);
     resetPeakMeters();
@@ -33,6 +37,8 @@ void Fairchild670Core::reset() noexcept
 {
     stageL_.reset();
     stageR_.reset();
+    transformerL_.reset();
+    transformerR_.reset();
     detectorL_.reset();
     detectorR_.reset();
     resetPeakMeters();
@@ -48,6 +54,13 @@ void Fairchild670Core::setQuality(ProcessingQuality quality) noexcept
     nr.maxIterations = (quality == ProcessingQuality::Draft) ? 8 : 20;
     stageL_.setNRConfig(nr);
     stageR_.setNRConfig(nr);
+}
+
+void Fairchild670Core::setCathodeBypassCapacitance(double farads) noexcept
+{
+    cfg_.stageCfg.Ck = std::max(0.0, farads);
+    stageL_.setCathodeBypassCapacitance(cfg_.stageCfg.Ck);
+    stageR_.setCathodeBypassCapacitance(cfg_.stageCfg.Ck);
 }
 
 void Fairchild670Core::setTimingPosition(Sidechain::TimingPosition pos) noexcept
@@ -121,9 +134,9 @@ void Fairchild670Core::processStereo(float inL, float inR,
     stageL_.setCv(finalCvL);
     stageR_.setCv(finalCvR);
 
-    // 4. Process audio through the variable-mu gain stages.
-    outL = stageL_.processSample(inL);
-    outR = stageR_.processSample(inR);
+    // 4. Process audio through the variable-mu gain stages and output transformers.
+    outL = transformerL_.processSample(stageL_.processSample(inL));
+    outR = transformerR_.processSample(stageR_.processSample(inR));
 
     // 5. Update meter accumulators.
     meters_.cvL = finalCvL;

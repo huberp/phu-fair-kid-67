@@ -109,6 +109,7 @@ add_executable(phu_fairchild670core_tests
     Fairchild670CoreTests.cpp
     ../src/DSP/Models/Fairchild/Fairchild670Core.cpp
     ../src/DSP/Models/Fairchild/VariableMuStage.cpp
+    ../src/DSP/Models/Transformer/TransformerLinear.cpp
     ../src/DSP/Models/Sidechain/RectifierDetector.cpp
     ../src/DSP/Models/Sidechain/TimingNetwork.cpp
     ../src/DSP/Circuit/Nonlinear/TriodeKoren.cpp

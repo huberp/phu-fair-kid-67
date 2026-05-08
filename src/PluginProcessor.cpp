@@ -68,6 +68,11 @@ PhuFairKid67AudioProcessor::createParameterLayout() {
         juce::ParameterID{kParamThresholdRight, 1}, "Threshold Right",
         juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f), 5.0f));
 
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamCathodeBypassUf, 1}, "Ck",
+        juce::NormalisableRange<float>(0.0f, 47.0f, 0.1f), 4.7f,
+        juce::AudioParameterFloatAttributes{}.withLabel("uF")));
+
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{kParamStereoMode, 1}, "Stereo Mode",
         juce::StringArray{"Stereo", "Mid/Side"}, 0));
@@ -146,6 +151,8 @@ void PhuFairKid67AudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     oversamplingChain_.setQuality(qualityChoice == 0
                                       ? Models::ProcessingQuality::Draft
                                       : Models::ProcessingQuality::High);
+    oversamplingChain_.core().setCathodeBypassCapacitance(
+        static_cast<double>(apvts.getRawParameterValue(kParamCathodeBypassUf)->load()) * 1.0e-6);
     oversamplingChain_.prepare(sampleRate, samplesPerBlock);
 
     // Report oversampling filter latency to the host so it can compensate.
@@ -256,8 +263,12 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             apvts.getRawParameterValue(kParamThresholdLeft)->load();
         const float thresholdRight =
             apvts.getRawParameterValue(kParamThresholdRight)->load();
+        const float cathodeBypassUf =
+            apvts.getRawParameterValue(kParamCathodeBypassUf)->load();
         oversamplingChain_.core().setThresholdLeft(10.0f - thresholdLeft);
         oversamplingChain_.core().setThresholdRight(10.0f - thresholdRight);
+        oversamplingChain_.core().setCathodeBypassCapacitance(
+            static_cast<double>(cathodeBypassUf) * 1.0e-6);
     }
 
     juce::dsp::AudioBlock<float> block(buffer);
@@ -381,4 +392,3 @@ void PhuFairKid67AudioProcessor::setStateInformation(const void* data, int sizeI
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() {
     return new PhuFairKid67AudioProcessor();
 }
-
