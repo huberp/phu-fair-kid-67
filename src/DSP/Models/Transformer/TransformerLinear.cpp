@@ -1,7 +1,15 @@
 #include "TransformerLinear.h"
 
 #include <algorithm>
+
+#define _USE_MATH_DEFINES
 #include <cmath>
+
+// in case M_PI is not defined by cmath, define it here.  We only need it for the filter coefficient calculations, so this is sufficient and avoids any issues with non-standard extensions.
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 
 namespace Models {
 
