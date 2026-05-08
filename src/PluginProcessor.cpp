@@ -263,17 +263,11 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     juce::dsp::AudioBlock<float> block(buffer);
     dryWetMixer.pushDrySamples(block);
 
-    // ── Per-channel input trim ────────────────────────────────────────────────
-    {
-        auto leftBlock  = block.getSingleChannelBlock(0);
-        auto rightBlock = block.getSingleChannelBlock(1);
-        juce::dsp::ProcessContextReplacing<float> ctxL(leftBlock);
-        juce::dsp::ProcessContextReplacing<float> ctxR(rightBlock);
-        inputGainL_.process(ctxL);
-        inputGainR_.process(ctxR);
-    }
-
-    // ── Stereo Mode: optionally convert L/R → M/S before compression ─────────
+    // ── Stereo Mode: optionally convert L/R → M/S before input trim ──────────
+    // Matches hardware behaviour: on the original Fairchild 670 the V/L matrix
+    // sits at the front of the signal path, ahead of the input gain stages.
+    // In M/S mode Channel 1 (Left dial) therefore trims Mid and
+    // Channel 2 (Right dial) trims Side, not L and R.
     // Encoding uses a 0.5 factor: M = (L+R)/2, S = (L-R)/2.
     // This keeps the intermediate M/S signals within the ±1.0 normalised range
     // even when L and R are both at full scale (e.g. a mono signal).
@@ -291,11 +285,33 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     }
 
+    // ── Per-channel input trim ────────────────────────────────────────────────
+    // In M/S mode these trim Mid (Ch1/Left dial) and Side (Ch2/Right dial).
+    {
+        auto leftBlock  = block.getSingleChannelBlock(0);
+        auto rightBlock = block.getSingleChannelBlock(1);
+        juce::dsp::ProcessContextReplacing<float> ctxL(leftBlock);
+        juce::dsp::ProcessContextReplacing<float> ctxR(rightBlock);
+        inputGainL_.process(ctxL);
+        inputGainR_.process(ctxR);
+    }
+
     // Process through the Fairchild 670 core with optional oversampling.
     oversamplingChain_.core().resetPeakMeters();
     oversamplingChain_.process(buffer);
 
-    // ── Stereo Mode: convert M/S → L/R after compression ─────────────────────
+    // ── Per-channel output trim ───────────────────────────────────────────────
+    // In M/S mode these trim Mid (Ch1/Left dial) and Side (Ch2/Right dial).
+    {
+        auto leftBlock  = block.getSingleChannelBlock(0);
+        auto rightBlock = block.getSingleChannelBlock(1);
+        juce::dsp::ProcessContextReplacing<float> ctxL(leftBlock);
+        juce::dsp::ProcessContextReplacing<float> ctxR(rightBlock);
+        outputGainL_.process(ctxL);
+        outputGainR_.process(ctxR);
+    }
+
+    // ── Stereo Mode: convert M/S → L/R after output trim ─────────────────────
     if (isMidSideMode && buffer.getNumChannels() >= 2) {
         auto* dataM = buffer.getWritePointer(0);
         auto* dataS = buffer.getWritePointer(1);
@@ -305,16 +321,6 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             dataM[i] = l;
             dataS[i] = r;
         }
-    }
-
-    // ── Per-channel output trim ───────────────────────────────────────────────
-    {
-        auto leftBlock  = block.getSingleChannelBlock(0);
-        auto rightBlock = block.getSingleChannelBlock(1);
-        juce::dsp::ProcessContextReplacing<float> ctxL(leftBlock);
-        juce::dsp::ProcessContextReplacing<float> ctxR(rightBlock);
-        outputGainL_.process(ctxL);
-        outputGainR_.process(ctxR);
     }
 
     // ── Solo ─────────────────────────────────────────────────────────────────
