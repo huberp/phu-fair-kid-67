@@ -10,7 +10,7 @@
 /// Simple horizontal bar meter.
 ///
 /// Signal kind:       levelDb in -60..0 dBFS; bar fills left-to-right,
-///                    colour transitions green → amber → red near 0 dBFS.
+///                    colour transitions green -> amber -> red near 0 dBFS.
 /// GainReduction kind: levelDb in -30..0 dB (0 = no reduction, -30 = heavy);
 ///                    bar fills left-to-right showing reduction amount in red.
 class LevelMeter final : public juce::Component {
