@@ -15,7 +15,7 @@
 ///                    bar fills left-to-right showing reduction amount in red.
 class LevelMeter final : public juce::Component {
   public:
-    enum class Kind { Signal, GainReduction };
+    enum class Kind { Signal, GainReduction, CV };
 
     explicit LevelMeter(Kind kind = Kind::Signal) noexcept : kind_(kind) {}
 
@@ -38,10 +38,14 @@ class LevelMeter final : public juce::Component {
             barColour = (levelDb_ >= -6.0f)  ? juce::Colour(0xFFE03020)
                       : (levelDb_ >= -20.0f) ? juce::Colour(0xFFE09020)
                                              : juce::Colour(0xFF30A040);
-        } else {
+        } else if (kind_ == Kind::GainReduction) {
             // Gain reduction: levelDb_ is 0..–30; map inverted so more reduction = more fill
             fraction  = juce::jmap(levelDb_, 0.0f, -30.0f, 0.0f, 1.0f);
             barColour = juce::Colour(0xFFD05030);
+        } else {
+            // CV: levelDb_ is reused as a raw voltage in 0..6 V
+            fraction  = juce::jmap(levelDb_, 0.0f, 6.0f, 0.0f, 1.0f);
+            barColour = juce::Colour(0xFFCCAA44); // amber — matches group label colour
         }
 
         fraction = juce::jlimit(0.0f, 1.0f, fraction);
@@ -136,11 +140,19 @@ class PhuFairKid67AudioProcessorEditor final
     LevelMeter  inputMeterR_  { LevelMeter::Kind::Signal };
     LevelMeter  grMeterL_     { LevelMeter::Kind::GainReduction };
     LevelMeter  grMeterR_     { LevelMeter::Kind::GainReduction };
+    LevelMeter  cvMeterL_     { LevelMeter::Kind::CV };
+    LevelMeter  cvMeterR_     { LevelMeter::Kind::CV };
     LevelMeter  outputMeterL_ { LevelMeter::Kind::Signal };
     LevelMeter  outputMeterR_ { LevelMeter::Kind::Signal };
     juce::Label meterLabelInL_, meterLabelInR_;
     juce::Label meterLabelGRL_, meterLabelGRR_;
     juce::Label meterLabelOutL_, meterLabelOutR_;
+    juce::Label meterLabelCvL_,  meterLabelCvR_;
+
+    /// Smoothed GR display state: attack is instant, release follows the
+    /// current timing position's release time constant.  Message-thread only.
+    float displayGrL_ = 0.0f;
+    float displayGrR_ = 0.0f;
 
     // Rectangles stored in resized() so paint() can draw panel backgrounds
     // without duplicating layout logic.

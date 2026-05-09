@@ -322,6 +322,20 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         outputGainR_.process(ctxR);
     }
 
+    // ── Solo (applied before M/S decode so ch0=M, ch1=S in M/S mode) ─────────
+    // In stereo mode the buffer is still L/R here, so the logic is identical.
+    // Clearing ch1 before decode gives: L=M, R=M  (mono Mid).
+    // Clearing ch0 before decode gives: L=S, R=-S (Side).
+    {
+        const bool soloLeft  = apvts.getRawParameterValue(kParamSoloLeft)->load()  > 0.5f;
+        const bool soloRight = apvts.getRawParameterValue(kParamSoloRight)->load() > 0.5f;
+        if (soloLeft && !soloRight) {
+            buffer.clear(1, 0, buffer.getNumSamples());
+        } else if (soloRight && !soloLeft) {
+            buffer.clear(0, 0, buffer.getNumSamples());
+        }
+    }
+
     // ── Stereo Mode: convert M/S → L/R after output trim ─────────────────────
     if (isMidSideMode && buffer.getNumChannels() >= 2) {
         auto* dataM = buffer.getWritePointer(0);
@@ -331,19 +345,6 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             const float r = dataM[i] - dataS[i];
             dataM[i] = l;
             dataS[i] = r;
-        }
-    }
-
-    // ── Solo ─────────────────────────────────────────────────────────────────
-    {
-        const bool soloLeft  = apvts.getRawParameterValue(kParamSoloLeft)->load()  > 0.5f;
-        const bool soloRight = apvts.getRawParameterValue(kParamSoloRight)->load() > 0.5f;
-        if (soloLeft && !soloRight) {
-            // Mute right, pass only left.
-            buffer.clear(1, 0, buffer.getNumSamples());
-        } else if (soloRight && !soloLeft) {
-            // Mute left, pass only right.
-            buffer.clear(0, 0, buffer.getNumSamples());
         }
     }
 
@@ -360,7 +361,11 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                : kFloorDb;
         };
         auto grDb = [&](float inPeak, float outPeak) -> float {
-            if (inPeak <= 0.0f || outPeak <= 0.0f) return kFloorDb;
+            // When input is below the noise floor there is no signal to
+            // measure, so report 0 dB (no gain reduction).  Returning kFloorDb
+            // here would snap the GR bar to full on every silent block.
+            if (inPeak < 1e-7f) return 0.0f;
+            if (outPeak <= 0.0f) return kFloorDb;
             return std::max(kFloorDb, std::min(0.0f, peakToDb(outPeak) - peakToDb(inPeak)));
         };
 
@@ -370,6 +375,8 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         apvts.getRawParameterValue(kParamMeterOutputR)->store(peakToDb(m.outPeakR));
         meterInputLDb_.store(peakToDb(m.inPeakL));
         meterInputRDb_.store(peakToDb(m.inPeakR));
+        meterCvL_.store(m.cvL);
+        meterCvR_.store(m.cvR);
     }
 }
 

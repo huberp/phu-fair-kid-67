@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 
+#include <cmath>
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Layout and style constants
 // All geometry and font sizes are defined here; no bare literals appear in the
@@ -34,7 +36,7 @@ constexpr int kButtonH       = 26; ///< Toggle button height
 // ── Meters ────────────────────────────────────────────────────────────────────
 constexpr int kMeterLabelW  = 52; ///< Width of the row label column
 constexpr int kMeterBarH    = 14; ///< Height of one meter bar
-constexpr int kMeterNumRows =  6; ///< Rows: in L, in R, GR L, GR R, out L, out R
+constexpr int kMeterNumRows =  8; ///< Rows: in L, in R, GR L, GR R, CV L, CV R, out L, out R
 /// Total height of the meter section, including the section header.
 constexpr int kMeterSectionH =
     kGroupLabelH + kItemGap + kMeterNumRows * (kMeterBarH + kItemGap);
@@ -246,6 +248,8 @@ PhuFairKid67AudioProcessorEditor::PhuFairKid67AudioProcessorEditor(
     setupMeterLabel(meterLabelInR_,  "In R");
     setupMeterLabel(meterLabelGRL_,  "GR L");
     setupMeterLabel(meterLabelGRR_,  "GR R");
+    setupMeterLabel(meterLabelCvL_,  "CV L");
+    setupMeterLabel(meterLabelCvR_,  "CV R");
     setupMeterLabel(meterLabelOutL_, "Out L");
     setupMeterLabel(meterLabelOutR_, "Out R");
 
@@ -253,6 +257,8 @@ PhuFairKid67AudioProcessorEditor::PhuFairKid67AudioProcessorEditor(
     addAndMakeVisible(inputMeterR_);
     addAndMakeVisible(grMeterL_);
     addAndMakeVisible(grMeterR_);
+    addAndMakeVisible(cvMeterL_);
+    addAndMakeVisible(cvMeterR_);
     addAndMakeVisible(outputMeterL_);
     addAndMakeVisible(outputMeterR_);
 
@@ -442,6 +448,8 @@ void PhuFairKid67AudioProcessorEditor::layoutMeters(juce::Rectangle<int> area) {
     placeRow(meterLabelInR_,  inputMeterR_);
     placeRow(meterLabelGRL_,  grMeterL_);
     placeRow(meterLabelGRR_,  grMeterR_);
+    placeRow(meterLabelCvL_,  cvMeterL_);
+    placeRow(meterLabelCvR_,  cvMeterR_);
     placeRow(meterLabelOutL_, outputMeterL_);
     placeRow(meterLabelOutR_, outputMeterR_);
 }
@@ -474,12 +482,43 @@ void PhuFairKid67AudioProcessorEditor::timerCallback() {
     inputMeterL_.setLevelDb(audioProcessor.getMeterInputLDb());
     inputMeterR_.setLevelDb(audioProcessor.getMeterInputRDb());
 
-    const float grL = audioProcessor.apvts
-                          .getRawParameterValue(P::kParamMeterGainReductionL)->load();
-    const float grR = audioProcessor.apvts
-                          .getRawParameterValue(P::kParamMeterGainReductionR)->load();
-    grMeterL_.setLevelDb(grL);
-    grMeterR_.setLevelDb(grR);
+    // CV meters: the detector CV already carries the hardware attack/release
+    // timing — no additional display smoothing is needed or wanted here.
+    cvMeterL_.setLevelDb(audioProcessor.getMeterCvL());
+    cvMeterR_.setLevelDb(audioProcessor.getMeterCvR());
+
+    // ── Update GR meters with attack/release smoothing ───────────────────────
+    // The raw per-block GR values reflect only the current buffer; they have
+    // no attack/release characteristic.  Apply an envelope here that mirrors
+    // the compressor's timing: instant attack (snap to more GR immediately),
+    // release that decays at the rate of the active timing preset.
+    {
+        const int timingIdx = juce::jlimit(
+            0, Models::Sidechain::kNumTimingPresets - 1,
+            static_cast<int>(
+                audioProcessor.apvts.getRawParameterValue(P::kParamTimingPosition)->load()));
+        const auto& preset = Models::Sidechain::kTimingPresets[timingIdx];
+
+        // Timer fires at 20 Hz → 50 ms per tick.
+        constexpr double kTimerIntervalSec = 1.0 / 20.0;
+        const float releaseAlpha = static_cast<float>(
+            std::exp(-kTimerIntervalSec / preset.releaseSec));
+
+        const float rawGrL = audioProcessor.apvts
+                                 .getRawParameterValue(P::kParamMeterGainReductionL)->load();
+        const float rawGrR = audioProcessor.apvts
+                                 .getRawParameterValue(P::kParamMeterGainReductionR)->load();
+
+        // More gain reduction (rawGr < displayGr) → snap immediately.
+        // Less gain reduction (rawGr > displayGr) → smooth release.
+        displayGrL_ = (rawGrL < displayGrL_) ? rawGrL
+                                             : releaseAlpha * displayGrL_ + (1.0f - releaseAlpha) * rawGrL;
+        displayGrR_ = (rawGrR < displayGrR_) ? rawGrR
+                                             : releaseAlpha * displayGrR_ + (1.0f - releaseAlpha) * rawGrR;
+
+        grMeterL_.setLevelDb(displayGrL_);
+        grMeterR_.setLevelDb(displayGrR_);
+    }
 
     const float outL = audioProcessor.apvts
                            .getRawParameterValue(P::kParamMeterOutputL)->load();
@@ -494,9 +533,9 @@ void PhuFairKid67AudioProcessorEditor::timerCallback() {
     latencyLabel_.setText("Latency: " + juce::String(latency) + " smp",
                           juce::dontSendNotification);
 
-    // ── Relabel I/O trim controls for Mid/Side stereo mode ───────────────────
-    // When stereo mode is Mid/Side, "Left" effectively trims Mid and
-    // "Right" trims Side (see PluginProcessor.cpp: stereo encode/decode).
+    // ── Relabel controls for Mid/Side stereo mode ────────────────────────────
+    // When stereo mode is Mid/Side, channel 1 carries Mid and channel 2 Side.
+    // Update every L/R label in the UI to reflect this.
 
     const bool isMidSide =
         static_cast<int>(
@@ -509,5 +548,17 @@ void PhuFairKid67AudioProcessorEditor::timerCallback() {
     inputTrimRLabel_.setText(rLabel,  juce::dontSendNotification);
     outputTrimLLabel_.setText(lLabel, juce::dontSendNotification);
     outputTrimRLabel_.setText(rLabel, juce::dontSendNotification);
+
+    soloLButton_.setButtonText(isMidSide ? "Solo Mid"  : "Solo L");
+    soloRButton_.setButtonText(isMidSide ? "Solo Side" : "Solo R");
+
+    meterLabelInL_.setText (isMidSide ? "In Mid"  : "In L",  juce::dontSendNotification);
+    meterLabelInR_.setText (isMidSide ? "In Side" : "In R",  juce::dontSendNotification);
+    meterLabelGRL_.setText (isMidSide ? "GR Mid"  : "GR L",  juce::dontSendNotification);
+    meterLabelGRR_.setText (isMidSide ? "GR Side" : "GR R",  juce::dontSendNotification);
+    meterLabelCvL_.setText (isMidSide ? "CV Mid"  : "CV L",  juce::dontSendNotification);
+    meterLabelCvR_.setText (isMidSide ? "CV Side" : "CV R",  juce::dontSendNotification);
+    meterLabelOutL_.setText(isMidSide ? "Out Mid" : "Out L", juce::dontSendNotification);
+    meterLabelOutR_.setText(isMidSide ? "Out Side": "Out R", juce::dontSendNotification);
 }
 

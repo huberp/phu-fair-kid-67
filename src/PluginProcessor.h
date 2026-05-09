@@ -75,6 +75,14 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     /// Input peak level in dBFS for the right channel (-60..0).
     [[nodiscard]] float getMeterInputRDb() const noexcept { return meterInputRDb_.load(); }
 
+    /// Sidechain detector control voltage for the left channel (0..~6 V).
+    /// This is the timing-correct envelope output after the RC attack/release
+    /// network, so it rises and falls exactly as fast as the hardware would.
+    [[nodiscard]] float getMeterCvL() const noexcept { return meterCvL_.load(); }
+
+    /// Sidechain detector control voltage for the right channel (0..~6 V).
+    [[nodiscard]] float getMeterCvR() const noexcept { return meterCvR_.load(); }
+
   private:
     juce::dsp::Gain<float>        inputGainL_;
     juce::dsp::Gain<float>        inputGainR_;
@@ -90,6 +98,10 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     /// Safe to read from the message thread (e.g. editor timer callback).
     std::atomic<float> meterInputLDb_ { -60.0f };
     std::atomic<float> meterInputRDb_ { -60.0f };
+
+    /// Sidechain detector CV (V), written atomically each processBlock.
+    std::atomic<float> meterCvL_ { 0.0f };
+    std::atomic<float> meterCvR_ { 0.0f };
 
     /// Cached timing position to avoid reconstructing detectors every buffer.
     int lastTimingPosition_   = -1;

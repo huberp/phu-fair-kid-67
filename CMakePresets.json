@@ -20,20 +20,39 @@
       "inherits": ["base"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "/LTCG",
+        "CMAKE_SHARED_LINKER_FLAGS_RELEASE": "/LTCG",
+        "CMAKE_MODULE_LINKER_FLAGS_RELEASE": "/LTCG",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON"  
+      }
+    },
+    {
+      "name": "base-release-linux",
+      "displayName": "Base Release Configuration",
+      "inherits": ["base-release"],
+      "cacheVariables": {
         "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG"
+      }
+    },
+     {
+      "name": "base-release-windows",
+      "displayName": "Base Release Configuration",
+      "inherits": ["base-release"],
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS_RELEASE": "-O2 -GL -DNDEBUG"
       }
     },
     {
       "name": "linux-release",
       "displayName": "Linux Release",
-      "inherits": ["base-release"],
+      "inherits": ["base-release-linux"],
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/linux-release"
     },
     {
       "name": "macos-x86_64-release",
       "displayName": "macOS Intel Release (x86_64)",
-      "inherits": ["base-release"],
+      "inherits": ["base-release-linux"],
       "generator": "Xcode",
       "binaryDir": "${sourceDir}/build/macos-x86_64-release",
       "cacheVariables": {
@@ -44,7 +63,7 @@
     {
       "name": "macos-arm64-release",
       "displayName": "macOS Apple Silicon Release (arm64)",
-      "inherits": ["base-release"],
+      "inherits": ["base-release-linux"],
       "generator": "Xcode",
       "binaryDir": "${sourceDir}/build/macos-arm64-release",
       "cacheVariables": {
@@ -65,7 +84,7 @@
     {
       "name": "vs2026-x64-release",
       "displayName": "Visual Studio 2026 (x64) Release",
-      "inherits": ["vs2026-x64-base", "base-release"]
+      "inherits": ["vs2026-x64-base", "base-release-windows"]
     },
     {
       "name": "vs2026-x64-debug",
