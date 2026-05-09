@@ -368,6 +368,8 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         apvts.getRawParameterValue(kParamMeterGainReductionR)->store(grDb(m.inPeakR, m.outPeakR));
         apvts.getRawParameterValue(kParamMeterOutputL)->store(peakToDb(m.outPeakL));
         apvts.getRawParameterValue(kParamMeterOutputR)->store(peakToDb(m.outPeakR));
+        meterInputLDb_.store(peakToDb(m.inPeakL));
+        meterInputRDb_.store(peakToDb(m.inPeakR));
     }
 }
 

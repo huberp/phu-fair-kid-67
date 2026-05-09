@@ -67,6 +67,14 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
         return oversamplingChain_.core().meters();
     }
 
+    /// Input peak level in dBFS for the left channel (-60..0).
+    /// Written atomically by the audio thread each processBlock; safe to read
+    /// from the message thread (e.g. editor timer).
+    [[nodiscard]] float getMeterInputLDb() const noexcept { return meterInputLDb_.load(); }
+
+    /// Input peak level in dBFS for the right channel (-60..0).
+    [[nodiscard]] float getMeterInputRDb() const noexcept { return meterInputRDb_.load(); }
+
   private:
     juce::dsp::Gain<float>        inputGainL_;
     juce::dsp::Gain<float>        inputGainR_;
@@ -77,6 +85,11 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     juce::dsp::DryWetMixer<float> dryWetMixer{512};
 
     DSP::OversamplingChain oversamplingChain_;
+
+    /// Input peak levels in dBFS, written atomically each processBlock.
+    /// Safe to read from the message thread (e.g. editor timer callback).
+    std::atomic<float> meterInputLDb_ { -60.0f };
+    std::atomic<float> meterInputRDb_ { -60.0f };
 
     /// Cached timing position to avoid reconstructing detectors every buffer.
     int lastTimingPosition_   = -1;
