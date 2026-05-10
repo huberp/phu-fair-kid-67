@@ -113,16 +113,18 @@ Most DAW installations already include this runtime; you only need to install it
 
 ### Timing Positions
 
-| Position | Attack | Release |
-|---|---|---|
-| 1 | 0.2 ms | 0.30 s |
-| 2 | 0.2 ms | 0.80 s |
-| 3 | 0.4 ms | 2.00 s |
-| 4 | 0.8 ms | 5.00 s |
-| 5 | 2.0 ms | 10.00 s |
-| 6 | 8.0 ms | 25.00 s |
+| Position | Attack | Release mode | Release |
+|---|---|---|---|
+| 1 | 0.2 ms | Fixed | 0.30 s |
+| 2 | 0.2 ms | Fixed | 0.80 s |
+| 3 | 0.2 ms | Fixed | 2.00 s |
+| 4 | 0.2 ms | Fixed | 5.00 s |
+| 5 | 0.2 ms | Auto (programme-dependent) | fast 0.50 s / slow 10.0 s |
+| 6 | 0.2 ms | Auto (programme-dependent) | fast 1.00 s / slow 25.0 s |
 
-Positions 1–2 work well for transient-heavy material (drums, percussion). Positions 3–4 suit program-level levelling. Positions 5–6 produce classic "breathing" programme compression.
+Attack is a uniform 0.2 ms across all positions, consistent with the Fairchild 670 hardware.
+
+Positions 1–2 work well for transient-heavy material (drums, percussion). Positions 3–4 suit program-level levelling. Positions 5–6 use a **programme-dependent automatic release**: two parallel release branches (fast and slow) run simultaneously and the envelope follows the larger of the two. This gives quick recovery after brief transients while sustaining longer tails after heavy limiting — classic programme-aware "breathing" compression.
 
 ### Typical Workflow
 
@@ -170,7 +172,15 @@ A bypass capacitor placed across the cathode resistor (Rk) removes the local fee
 The sidechain performs two operations on each input sample:
 
 1. **Full-wave rectification** — `|Vin|` scaled from normalised audio to volts (±1 full-scale = ±10 V).
-2. **Attack/release RC smoothing** — a one-pole IIR filter with a fast attack coefficient (quick to respond to loud transients) and a slow release coefficient (gradual return to silence). Coefficients are derived from `α = exp(−1 / (τ · fs))`.
+2. **Attack/release RC smoothing** — a one-pole IIR filter whose coefficients are derived from `α = exp(−1 / (τ · fs))`.
+
+**Timing positions 1–4 (Fixed):** a single release time constant is used — fast attack (0.2 ms), then a fixed exponential decay at the chosen release time.
+
+**Timing positions 5–6 (Auto / programme-dependent):** two parallel release branches (fast and slow) both decay the envelope simultaneously after the signal drops. The output follows the *larger* of the two, which means:
+- After a brief transient, the fast branch clears quickly and the envelope recovers fast.
+- After sustained heavy limiting, the slow branch lingers, producing a long tail that prevents abrupt pumping.
+
+This dual-branch behaviour replicates the programme-dependent automatic release of the original Fairchild 670 hardware.
 
 The smoothed CV is clamped to a safe range (`[0, 6 V]`) before being applied to the gain stage grid.
 
