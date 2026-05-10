@@ -34,7 +34,7 @@ static float measureRMS(Analog::Models::TransformerLinear& xfmr,
 }
 
 /// Measure peak-to-peak output swing of a sine wave over several cycles.
-static float measurePeakToPeak(Models::TransformerLinear& xfmr,
+static float measurePeakToPeak(Analog::Models::TransformerLinear& xfmr,
                                 float amplitude, double freqHz = 1000.0,
                                 double sampleRate = 44100.0, int cycles = 5)
 {
@@ -58,7 +58,7 @@ static float measurePeakToPeak(Models::TransformerLinear& xfmr,
 TEST_CASE("TransformerLinear: no NaN/Inf with moderate input (drive=1)",
           "[transformer][stability]")
 {
-    Models::TransformerLinear xfmr;
+    Analog::Models::TransformerLinear xfmr;
     xfmr.prepare(44100.0);
 
     for (float v : {0.0f, 0.1f, -0.1f, 0.5f, -0.5f, 1.0f, -1.0f}) {
@@ -73,7 +73,7 @@ TEST_CASE("TransformerLinear: no NaN/Inf with moderate input (drive=1)",
 TEST_CASE("TransformerLinear: no NaN/Inf with extreme input",
           "[transformer][stability]")
 {
-    Models::TransformerLinear xfmr;
+    Analog::Models::TransformerLinear xfmr;
     xfmr.prepare(44100.0);
 
     for (float v : {-10.0f, 10.0f, -100.0f, 100.0f}) {
@@ -88,9 +88,9 @@ TEST_CASE("TransformerLinear: no NaN/Inf with extreme input",
 TEST_CASE("TransformerLinear: no NaN/Inf with high drive",
           "[transformer][stability]")
 {
-    Models::TransformerLinearConfig cfg;
+    Analog::Models::TransformerLinearConfig cfg;
     cfg.drive = 10.0f;
-    Models::TransformerLinear xfmr(cfg);
+    Analog::Models::TransformerLinear xfmr(cfg);
     xfmr.prepare(44100.0);
 
     for (float v : {0.0f, 0.5f, -0.5f, 1.0f, -1.0f}) {
@@ -105,7 +105,7 @@ TEST_CASE("TransformerLinear: no NaN/Inf with high drive",
 TEST_CASE("TransformerLinear: silent input stays silent (drive=1)",
           "[transformer][stability]")
 {
-    Models::TransformerLinear xfmr;
+    Analog::Models::TransformerLinear xfmr;
     xfmr.prepare(44100.0);
 
     for (int i = 0; i < 1000; ++i) {
@@ -128,7 +128,7 @@ TEST_CASE("TransformerLinear: midband passes with near-unity gain (drive=1)",
     const double sr = 44100.0;
     const float  A  = 0.01f;  // small signal — saturator is negligible
 
-    Models::TransformerLinear xfmr;
+    Analog::Models::TransformerLinear xfmr;
     xfmr.prepare(sr);
 
     const float rms = measureRMS(xfmr, A, 1000.0, sr);
@@ -147,7 +147,7 @@ TEST_CASE("TransformerLinear: HPF attenuates sub-cutoff frequencies",
     const double sr = 44100.0;
     const float  A  = 0.5f;
 
-    Models::TransformerLinear xfmrMid, xfmrLow;
+    Analog::Models::TransformerLinear xfmrMid, xfmrLow;
     xfmrMid.prepare(sr);
     xfmrLow.prepare(sr);
 
@@ -169,7 +169,7 @@ TEST_CASE("TransformerLinear: LPF attenuates supra-cutoff frequencies",
     const double sr = 96000.0; // Use high sample rate so 20 kHz is not near Nyquist
     const float  A  = 0.5f;
 
-    Models::TransformerLinear xfmrMid, xfmrHigh;
+    Analog::Models::TransformerLinear xfmrMid, xfmrHigh;
     xfmrMid.prepare(sr);
     xfmrHigh.prepare(sr);
 
@@ -192,11 +192,11 @@ TEST_CASE("TransformerLinear: HPF cutoff frequency shift changes low-end respons
     const float  A   = 0.5f;
     const double testFreq = 100.0; // Hz — between the two cutoffs to test
 
-    Models::TransformerLinearConfig cfgLow, cfgHigh;
+    Analog::Models::TransformerLinearConfig cfgLow, cfgHigh;
     cfgLow.hpfCutoffHz  = 20.0;
     cfgHigh.hpfCutoffHz = 500.0; // Well above testFreq
 
-    Models::TransformerLinear xfmrLow(cfgLow), xfmrHigh(cfgHigh);
+    Analog::Models::TransformerLinear xfmrLow(cfgLow), xfmrHigh(cfgHigh);
     xfmrLow.prepare(sr);
     xfmrHigh.prepare(sr);
 
@@ -220,7 +220,7 @@ TEST_CASE("TransformerLinear: drive=1 is fully linear (no gain compression)",
     const float  A1 = 0.01f;
     const float  A2 = 0.02f;
 
-    Models::TransformerLinear xfmr1, xfmr2;
+    Analog::Models::TransformerLinear xfmr1, xfmr2;
     xfmr1.prepare(sr);
     xfmr2.prepare(sr);
 
@@ -243,10 +243,10 @@ TEST_CASE("TransformerLinear: high drive causes gain compression at large amplit
     const float  A_low  = 0.001f;
     const float  A_high = 0.9f;
 
-    Models::TransformerLinearConfig cfg;
+    Analog::Models::TransformerLinearConfig cfg;
     cfg.drive = 8.0f;
 
-    Models::TransformerLinear xfmrLow(cfg), xfmrHigh(cfg);
+    Analog::Models::TransformerLinear xfmrLow(cfg), xfmrHigh(cfg);
     xfmrLow.prepare(sr);
     xfmrHigh.prepare(sr);
 
@@ -271,11 +271,11 @@ TEST_CASE("TransformerLinear: increasing drive increases saturation at fixed amp
     const double sr = 44100.0;
     const float  A  = 0.8f;
 
-    Models::TransformerLinearConfig cfgClean, cfgDriven;
+    Analog::Models::TransformerLinearConfig cfgClean, cfgDriven;
     cfgClean.drive  = 1.0f;
     cfgDriven.drive = 8.0f;
 
-    Models::TransformerLinear xfmrClean(cfgClean), xfmrDriven(cfgDriven);
+    Analog::Models::TransformerLinear xfmrClean(cfgClean), xfmrDriven(cfgDriven);
     xfmrClean.prepare(sr);
     xfmrDriven.prepare(sr);
 
@@ -294,9 +294,9 @@ TEST_CASE("TransformerLinear: saturation output is bounded",
 {
     // tanh saturator output must stay within (−1/drive, +1/drive) → safe bound.
     // In practice we just require it stays within ±1.
-    Models::TransformerLinearConfig cfg;
+    Analog::Models::TransformerLinearConfig cfg;
     cfg.drive = 10.0f;
-    Models::TransformerLinear xfmr(cfg);
+    Analog::Models::TransformerLinear xfmr(cfg);
     xfmr.prepare(44100.0);
 
     for (int cycle = 0; cycle < 10; ++cycle) {
@@ -316,7 +316,7 @@ TEST_CASE("TransformerLinear: saturation output is bounded",
 TEST_CASE("TransformerLinear: reset restores initial conditions",
           "[transformer][lifecycle]")
 {
-    Models::TransformerLinear xfmr;
+    Analog::Models::TransformerLinear xfmr;
     xfmr.prepare(44100.0);
 
     // Run some samples to build up filter state.
@@ -336,7 +336,7 @@ TEST_CASE("TransformerLinear: different sample rates produce finite output",
           "[transformer][lifecycle]")
 {
     for (double sr : {8000.0, 44100.0, 48000.0, 96000.0, 192000.0}) {
-        Models::TransformerLinear xfmr;
+        Analog::Models::TransformerLinear xfmr;
         xfmr.prepare(sr);
         INFO("sampleRate=" << sr);
         for (int i = 0; i < 100; ++i) {
@@ -355,11 +355,11 @@ TEST_CASE("TransformerLinear: setConfig + re-prepare changes coefficients",
     const float  A    = 0.5f;
     const double freq = 200.0;
 
-    Models::TransformerLinear xfmr;
+    Analog::Models::TransformerLinear xfmr;
     xfmr.prepare(sr);
     const float rmsDefault = measureRMS(xfmr, A, freq, sr);
 
-    Models::TransformerLinearConfig newCfg;
+    Analog::Models::TransformerLinearConfig newCfg;
     newCfg.hpfCutoffHz = 500.0;
     xfmr.setConfig(newCfg);
     xfmr.prepare(sr);
@@ -379,11 +379,11 @@ TEST_CASE("TransformerLinear: independent L/R instances do not share state",
     // Drive the L channel hard; R channel should be unaffected.
     const double sr = 44100.0;
 
-    Models::TransformerLinearConfig cfgL, cfgR;
+    Analog::Models::TransformerLinearConfig cfgL, cfgR;
     cfgL.drive = 1.0f; // clean
     cfgR.drive = 1.0f;
 
-    Models::TransformerLinear xfmrL(cfgL), xfmrR(cfgR);
+    Analog::Models::TransformerLinear xfmrL(cfgL), xfmrR(cfgR);
     xfmrL.prepare(sr);
     xfmrR.prepare(sr);
 
@@ -406,13 +406,13 @@ TEST_CASE("TransformerLinear: L/R instances can have different configurations",
     const double sr = 44100.0;
 
     // L: clean, R: saturated.
-    Models::TransformerLinearConfig cfgL;
+    Analog::Models::TransformerLinearConfig cfgL;
     cfgL.drive = 1.0f;
 
-    Models::TransformerLinearConfig cfgR;
+    Analog::Models::TransformerLinearConfig cfgR;
     cfgR.drive = 8.0f;
 
-    Models::TransformerLinear xfmrL(cfgL), xfmrR(cfgR);
+    Analog::Models::TransformerLinear xfmrL(cfgL), xfmrR(cfgR);
     xfmrL.prepare(sr);
     xfmrR.prepare(sr);
 

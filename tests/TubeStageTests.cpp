@@ -16,7 +16,7 @@
 static Analog::Models::TubeStage makeWarmedStage(double sampleRate = 44100.0,
                                          int warmupSamples = 2000)
 {
-    Models::TubeStage stage;
+    Analog::Models::TubeStage stage;
     stage.prepare(sampleRate);
     for (int i = 0; i < warmupSamples; ++i)
         (void)stage.processSample(0.0f);
@@ -47,7 +47,7 @@ static float measurePeakToPeak(Analog::Models::TubeStage& stage,
 // ── Stability: no NaN / Inf ───────────────────────────────────────────────────
 
 TEST_CASE("TubeStage: no NaN/Inf with moderate input", "[tubestage][stability]") {
-    Models::TubeStage stage;
+    Analog::Models::TubeStage stage;
     stage.prepare(44100.0);
 
     for (float v : {0.0f, 0.1f, -0.1f, 0.5f, -0.5f, 1.0f, -1.0f}) {
@@ -60,7 +60,7 @@ TEST_CASE("TubeStage: no NaN/Inf with moderate input", "[tubestage][stability]")
 }
 
 TEST_CASE("TubeStage: no NaN/Inf with extreme input (±10 full-scale)", "[tubestage][stability]") {
-    Models::TubeStage stage;
+    Analog::Models::TubeStage stage;
     stage.prepare(44100.0);
 
     for (float v : {-10.0f, 10.0f, -5.0f, 5.0f}) {
@@ -73,7 +73,7 @@ TEST_CASE("TubeStage: no NaN/Inf with extreme input (±10 full-scale)", "[tubest
 }
 
 TEST_CASE("TubeStage: no NaN/Inf at silent input", "[tubestage][stability]") {
-    Models::TubeStage stage;
+    Analog::Models::TubeStage stage;
     stage.prepare(44100.0);
 
     for (int i = 0; i < 500; ++i) {
@@ -86,8 +86,8 @@ TEST_CASE("TubeStage: no NaN/Inf at silent input", "[tubestage][stability]") {
 
 TEST_CASE("TubeStage: quiescent plate voltage is within supply rail", "[tubestage][bias]") {
     // After warm-up the plate must sit between ground and B+.
-    Models::TubeStageConfig cfg;
-    Models::TubeStage stage(cfg);
+    Analog::Models::TubeStageConfig cfg;
+    Analog::Models::TubeStage stage(cfg);
     stage.prepare(44100.0);
 
     for (int i = 0; i < 2000; ++i)
@@ -95,7 +95,7 @@ TEST_CASE("TubeStage: quiescent plate voltage is within supply rail", "[tubestag
 
     // Output is Vp / kVoltsPerSample; Vp ∈ (0, Vcc)
     const float out   = stage.processSample(0.0f);
-    const float Vp    = out * UnitScaling::kVoltsPerSample;
+    const float Vp    = out * Analog::kVoltsPerSample;
     INFO("Quiescent Vp = " << Vp << " V");
     REQUIRE(Vp > 0.0f);
     REQUIRE(Vp < static_cast<float>(cfg.Vcc));
@@ -103,7 +103,7 @@ TEST_CASE("TubeStage: quiescent plate voltage is within supply rail", "[tubestag
 
 TEST_CASE("TubeStage: quiescent output is stable (converges)", "[tubestage][bias]") {
     // After sufficient warm-up, the output for a silent input should not drift.
-    Models::TubeStage stage;
+    Analog::Models::TubeStage stage;
     stage.prepare(44100.0);
 
     // Burn in
@@ -181,10 +181,10 @@ TEST_CASE("TubeStage: high drive shows gain compression vs low drive", "[tubesta
 
 TEST_CASE("TubeStage: high drive output remains bounded (no runaway)", "[tubestage][distortion]") {
     // At maximum drive the output plate voltage must stay within the supply rail.
-    Models::TubeStageConfig cfg;
+    Analog::Models::TubeStageConfig cfg;
     auto stage = makeWarmedStage();
 
-    const float Vcc_norm = static_cast<float>(cfg.Vcc) / UnitScaling::kVoltsPerSample;
+    const float Vcc_norm = static_cast<float>(cfg.Vcc) / Analog::kVoltsPerSample;
 
     for (int cycle = 0; cycle < 10; ++cycle) {
         for (int i = 0; i < 441; ++i) {
@@ -203,7 +203,7 @@ TEST_CASE("TubeStage: high drive output remains bounded (no runaway)", "[tubesta
 
 TEST_CASE("TubeStage: reset restores initial conditions", "[tubestage][lifecycle]") {
     // Two stages processed identically after a reset must produce identical output.
-    Models::TubeStage stage;
+    Analog::Models::TubeStage stage;
     stage.prepare(44100.0);
 
     // Collect output from first run.
@@ -221,7 +221,7 @@ TEST_CASE("TubeStage: reset restores initial conditions", "[tubestage][lifecycle
 
 TEST_CASE("TubeStage: different sample rates produce finite output", "[tubestage][lifecycle]") {
     for (double sr : {8000.0, 44100.0, 48000.0, 96000.0, 192000.0}) {
-        Models::TubeStage stage;
+        Analog::Models::TubeStage stage;
         stage.prepare(sr);
         INFO("sampleRate=" << sr);
         for (int i = 0; i < 100; ++i) {
@@ -234,9 +234,9 @@ TEST_CASE("TubeStage: different sample rates produce finite output", "[tubestage
 // ── Cathode bypass capacitor ──────────────────────────────────────────────────
 
 TEST_CASE("TubeStage: with cathode bypass cap, output is finite", "[tubestage][bypass]") {
-    Models::TubeStageConfig cfg;
+    Analog::Models::TubeStageConfig cfg;
     cfg.Ck = 47e-6; // 47 µF bypass cap
-    Models::TubeStage stage(cfg);
+    Analog::Models::TubeStage stage(cfg);
     stage.prepare(44100.0);
 
     for (int i = 0; i < 500; ++i) {
@@ -258,17 +258,17 @@ TEST_CASE("TubeStage: with cathode bypass cap, high-freq gain >= no-bypass gain"
     const float A = 0.01f;
 
     // No bypass
-    Models::TubeStageConfig cfgNoCk;
+    Analog::Models::TubeStageConfig cfgNoCk;
     cfgNoCk.Ck = 0.0;
-    Models::TubeStage stageNoCk(cfgNoCk);
+    Analog::Models::TubeStage stageNoCk(cfgNoCk);
     stageNoCk.prepare(sr);
     for (int i = 0; i < warmup; ++i) (void)stageNoCk.processSample(0.0f);
     const float ptp_noCk = measurePeakToPeak(stageNoCk, A, 1000.0, sr, 5);
 
     // With 47 µF bypass
-    Models::TubeStageConfig cfgCk;
+    Analog::Models::TubeStageConfig cfgCk;
     cfgCk.Ck = 47e-6;
-    Models::TubeStage stageCk(cfgCk);
+    Analog::Models::TubeStage stageCk(cfgCk);
     stageCk.prepare(sr);
     for (int i = 0; i < warmup; ++i) (void)stageCk.processSample(0.0f);
     const float ptp_Ck = measurePeakToPeak(stageCk, A, 1000.0, sr, 5);

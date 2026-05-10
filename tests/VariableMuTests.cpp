@@ -17,7 +17,7 @@ static Analog::Models::VariableMuStage makeWarmedStage(float cv = 0.0f,
                                                double sampleRate = 44100.0,
                                                int warmupSamples = 2000)
 {
-    Models::VariableMuStage stage;
+    Analog::Models::VariableMuStage stage;
     stage.prepare(sampleRate);
     stage.setCv(cv);
     for (int i = 0; i < warmupSamples; ++i)
@@ -50,7 +50,7 @@ static float measurePeakToPeak(Analog::Models::VariableMuStage& stage,
 TEST_CASE("VariableMuStage: no NaN/Inf with moderate input at CV=0",
           "[variablemu][stability]")
 {
-    Models::VariableMuStage stage;
+    Analog::Models::VariableMuStage stage;
     stage.prepare(44100.0);
     stage.setCv(0.0f);
 
@@ -66,8 +66,8 @@ TEST_CASE("VariableMuStage: no NaN/Inf with moderate input at CV=0",
 TEST_CASE("VariableMuStage: no NaN/Inf at maximum CV",
           "[variablemu][stability]")
 {
-    Models::VariableMuStageConfig cfg;
-    Models::VariableMuStage stage(cfg);
+    Analog::Models::VariableMuStageConfig cfg;
+    Analog::Models::VariableMuStage stage(cfg);
     stage.prepare(44100.0);
     stage.setCv(static_cast<float>(cfg.cvMaxV));
 
@@ -84,7 +84,7 @@ TEST_CASE("VariableMuStage: no NaN/Inf at extreme input (±10 full-scale)",
           "[variablemu][stability]")
 {
     for (float cv : {0.0f, 3.0f, 6.0f}) {
-        Models::VariableMuStage stage;
+        Analog::Models::VariableMuStage stage;
         stage.prepare(44100.0);
         stage.setCv(cv);
 
@@ -103,7 +103,7 @@ TEST_CASE("VariableMuStage: no NaN/Inf at extreme input (±10 full-scale)",
 TEST_CASE("VariableMuStage: negative CV is clamped to zero",
           "[variablemu][cv]")
 {
-    Models::VariableMuStage stage;
+    Analog::Models::VariableMuStage stage;
     stage.prepare(44100.0);
     stage.setCv(-5.0f);
     REQUIRE_THAT(stage.cv(), Catch::Matchers::WithinAbs(0.0f, 1e-6f));
@@ -112,8 +112,8 @@ TEST_CASE("VariableMuStage: negative CV is clamped to zero",
 TEST_CASE("VariableMuStage: CV above cvMaxV is clamped to cvMaxV",
           "[variablemu][cv]")
 {
-    Models::VariableMuStageConfig cfg;
-    Models::VariableMuStage stage(cfg);
+    Analog::Models::VariableMuStageConfig cfg;
+    Analog::Models::VariableMuStage stage(cfg);
     stage.prepare(44100.0);
     stage.setCv(static_cast<float>(cfg.cvMaxV) + 100.0f);
     REQUIRE_THAT(stage.cv(),
@@ -123,8 +123,8 @@ TEST_CASE("VariableMuStage: CV above cvMaxV is clamped to cvMaxV",
 TEST_CASE("VariableMuStage: CV within range is stored unchanged",
           "[variablemu][cv]")
 {
-    Models::VariableMuStageConfig cfg;
-    Models::VariableMuStage stage(cfg);
+    Analog::Models::VariableMuStageConfig cfg;
+    Analog::Models::VariableMuStage stage(cfg);
     stage.prepare(44100.0);
 
     const float testCv = static_cast<float>(cfg.cvMaxV * 0.5);
@@ -137,8 +137,8 @@ TEST_CASE("VariableMuStage: CV within range is stored unchanged",
 TEST_CASE("VariableMuStage: quiescent plate voltage is within supply rail at CV=0",
           "[variablemu][bias]")
 {
-    Models::VariableMuStageConfig cfg;
-    Models::VariableMuStage stage(cfg);
+    Analog::Models::VariableMuStageConfig cfg;
+    Analog::Models::VariableMuStage stage(cfg);
     stage.prepare(44100.0);
     stage.setCv(0.0f);
 
@@ -146,7 +146,7 @@ TEST_CASE("VariableMuStage: quiescent plate voltage is within supply rail at CV=
         (void)stage.processSample(0.0f);
 
     const float out = stage.processSample(0.0f);
-    const float Vp  = out * UnitScaling::kVoltsPerSample;
+    const float Vp  = out * Analog::kVoltsPerSample;
     INFO("Quiescent Vp (CV=0) = " << Vp << " V");
     REQUIRE(Vp > 0.0f);
     REQUIRE(Vp < static_cast<float>(cfg.Vcc));
@@ -155,8 +155,8 @@ TEST_CASE("VariableMuStage: quiescent plate voltage is within supply rail at CV=
 TEST_CASE("VariableMuStage: quiescent plate voltage is within supply rail at max CV",
           "[variablemu][bias]")
 {
-    Models::VariableMuStageConfig cfg;
-    Models::VariableMuStage stage(cfg);
+    Analog::Models::VariableMuStageConfig cfg;
+    Analog::Models::VariableMuStage stage(cfg);
     stage.prepare(44100.0);
     stage.setCv(static_cast<float>(cfg.cvMaxV));
 
@@ -164,7 +164,7 @@ TEST_CASE("VariableMuStage: quiescent plate voltage is within supply rail at max
         (void)stage.processSample(0.0f);
 
     const float out = stage.processSample(0.0f);
-    const float Vp  = out * UnitScaling::kVoltsPerSample;
+    const float Vp  = out * Analog::kVoltsPerSample;
     INFO("Quiescent Vp (CV=cvMaxV) = " << Vp << " V");
     REQUIRE(Vp > 0.0f);
     REQUIRE(Vp < static_cast<float>(cfg.Vcc));
@@ -181,7 +181,7 @@ static float measureGainAtCv(float cv, double sampleRate = 44100.0)
 {
     const float amplitude = 0.005f; // small-signal: amplitude where triode operates with minimal distortion
 
-    Models::VariableMuStage stage;
+    Analog::Models::VariableMuStage stage;
     stage.prepare(sampleRate);
     stage.setCv(cv);
 
@@ -202,7 +202,7 @@ TEST_CASE("VariableMuStage: gain decreases monotonically as CV increases (static
 {
     // Sweep CV from 0 to cvMaxV in equal steps and verify that the small-signal
     // voltage gain is strictly non-increasing at each step.
-    Models::VariableMuStageConfig cfg;
+    Analog::Models::VariableMuStageConfig cfg;
     const int steps = 7;
     const float cvStep = static_cast<float>(cfg.cvMaxV) / static_cast<float>(steps);
 
@@ -226,7 +226,7 @@ TEST_CASE("VariableMuStage: gain decreases monotonically as CV increases (static
 TEST_CASE("VariableMuStage: maximum CV produces measurable attenuation vs CV=0",
           "[variablemu][gain-reduction]")
 {
-    Models::VariableMuStageConfig cfg;
+    Analog::Models::VariableMuStageConfig cfg;
     const float gainAt0    = measureGainAtCv(0.0f);
     const float gainAtMax  = measureGainAtCv(static_cast<float>(cfg.cvMaxV));
 
@@ -244,7 +244,7 @@ TEST_CASE("VariableMuStage: cathode bypass capacitance can be changed safely at 
     constexpr double sr      = 44100.0;
     constexpr float  amplitude = 0.01f;
 
-    Models::VariableMuStage stage;
+    Analog::Models::VariableMuStage stage;
     stage.prepare(sr);
     stage.setCv(0.0f);
 
@@ -269,8 +269,8 @@ TEST_CASE("VariableMuStage: output has no large jump on CV step change",
     // Apply a CV step change mid-stream and verify that the output does not
     // produce a large discontinuity.  The allowed jump is bounded by the
     // full supply-rail swing (in normalised units).
-    Models::VariableMuStageConfig cfg;
-    Models::VariableMuStage stage(cfg);
+    Analog::Models::VariableMuStageConfig cfg;
+    Analog::Models::VariableMuStage stage(cfg);
     stage.prepare(44100.0);
     stage.setCv(0.0f);
 
@@ -288,7 +288,7 @@ TEST_CASE("VariableMuStage: output has no large jump on CV step change",
     const float outAfter = stage.processSample(inSample);
 
     // The per-sample change in output must stay within the full supply rail.
-    const float maxJump = static_cast<float>(cfg.Vcc) / UnitScaling::kVoltsPerSample;
+    const float maxJump = static_cast<float>(cfg.Vcc) / Analog::kVoltsPerSample;
     const float jump    = std::abs(outAfter - outBefore);
     INFO("Output before CV step: " << outBefore);
     INFO("Output after  CV step: " << outAfter);
@@ -301,7 +301,7 @@ TEST_CASE("VariableMuStage: output has no large jump on CV step change",
 TEST_CASE("VariableMuStage: reset restores initial conditions",
           "[variablemu][lifecycle]")
 {
-    Models::VariableMuStage stage;
+    Analog::Models::VariableMuStage stage;
     stage.prepare(44100.0);
     stage.setCv(2.0f);
 
@@ -322,7 +322,7 @@ TEST_CASE("VariableMuStage: reset restores initial conditions",
 TEST_CASE("VariableMuStage: reset clears CV to zero",
           "[variablemu][lifecycle]")
 {
-    Models::VariableMuStage stage;
+    Analog::Models::VariableMuStage stage;
     stage.prepare(44100.0);
     stage.setCv(4.0f);
     stage.reset();
@@ -334,7 +334,7 @@ TEST_CASE("VariableMuStage: different sample rates produce finite output",
 {
     for (double sr : {8000.0, 44100.0, 48000.0, 96000.0, 192000.0}) {
         for (float cv : {0.0f, 3.0f, 6.0f}) {
-            Models::VariableMuStage stage;
+            Analog::Models::VariableMuStage stage;
             stage.prepare(sr);
             stage.setCv(cv);
             INFO("sampleRate=" << sr << " CV=" << cv);

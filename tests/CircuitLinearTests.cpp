@@ -10,7 +10,7 @@
 TEST_CASE("Circuit: resistor divider, equal R, midpoint = half supply", "[circuit][resistor]") {
     // V1(10 V) ─ R1(1 kΩ) ─ node2 ─ R2(1 kΩ) ─ GND
     // Expected: V_node1 = 10 V, V_node2 = 5 V
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(1000.0, 1, 2);  // R1: node1 → node2
     mna.stampResistor(1000.0, 2, 0);  // R2: node2 → ground
     mna.stampVoltageSource(0, 1, 0);  // V1: drives node1 from ground
@@ -28,7 +28,7 @@ TEST_CASE("Circuit: resistor divider, equal R, midpoint = half supply", "[circui
 TEST_CASE("Circuit: resistor divider, 2:1 ratio", "[circuit][resistor]") {
     // V1(6 V) ─ R1(2 kΩ) ─ node2 ─ R2(1 kΩ) ─ GND
     // V_node2 = 6 * 1000/(2000+1000) = 2 V
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(2000.0, 1, 2);
     mna.stampResistor(1000.0, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
@@ -44,7 +44,7 @@ TEST_CASE("Circuit: resistor divider, 2:1 ratio", "[circuit][resistor]") {
 TEST_CASE("Circuit: resistor divider, vsrc current equals V/R_total", "[circuit][resistor]") {
     // V1(10 V) ─ R1(1 kΩ) ─ node2 ─ R2(1 kΩ) ─ GND
     // I = 10 / 2000 = 5 mA
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(1000.0, 1, 2);
     mna.stampResistor(1000.0, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
@@ -60,7 +60,7 @@ TEST_CASE("Circuit: resistor divider, vsrc current equals V/R_total", "[circuit]
 TEST_CASE("Circuit: resistor divider, DC result is sample-rate independent", "[circuit][resistor]") {
     // The DC result must not depend on the sample rate.
     for (double sr : {8000.0, 44100.0, 96000.0, 192000.0}) {
-        Circuit::Circuit mna(2, 1);
+        Analog::Circuit::Circuit mna(2, 1);
         mna.stampResistor(1000.0, 1, 2);
         mna.stampResistor(1000.0, 2, 0);
         mna.stampVoltageSource(0, 1, 0);
@@ -83,7 +83,7 @@ TEST_CASE("Circuit: RC low-pass step response approaches supply after 5 tau", "[
     const double C = 100e-6;
     const double tau = R * C; // 0.1 s
 
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(R, 1, 2);
     mna.stampCapacitor(C, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
@@ -109,7 +109,7 @@ TEST_CASE("Circuit: RC low-pass step response at t = tau", "[circuit][rc]") {
     const double C = 100e-6;
     const double tau = R * C; // 0.1 s
 
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(R, 1, 2);
     mna.stampCapacitor(C, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
@@ -134,7 +134,7 @@ TEST_CASE("Circuit: RC long-run stability, no drift or blow-up", "[circuit][rc][
     const double R = 10000.0;
     const double C = 1e-6; // τ ≈ 10 ms
 
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(R, 1, 2);
     mna.stampCapacitor(C, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
@@ -158,7 +158,7 @@ TEST_CASE("Circuit: RC reset clears capacitor state", "[circuit][rc]") {
     const double R = 1000.0;
     const double C = 100e-6;
 
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(R, 1, 2);
     mna.stampCapacitor(C, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
