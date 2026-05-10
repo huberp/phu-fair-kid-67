@@ -1,9 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "../src/DSP/Models/Sidechain/RectifierDetector.h"
-#include "../src/DSP/Models/Sidechain/TimingNetwork.h"
-#include "../src/DSP/UnitScaling.h"
+#include "analog/models/sidechain/RectifierDetector.h"
+#include "src/DSP/Models/Sidechain/TimingNetworkAdapter.h"
+#include "src/DSP/Models/Sidechain/TimingNetwork.h"
+#include "analog/dsp/UnitScaling.h"
 
 #include <cmath>
 #include <limits>
@@ -56,9 +57,8 @@ TEST_CASE("TimingNetwork: longer tau produces larger alpha (slower response)", "
 
 TEST_CASE("RectifierDetector: output is finite for all presets", "[detector][stability]") {
     for (int i = 0; i < Models::Sidechain::kNumTimingPresets; ++i) {
-        Models::Sidechain::RectifierDetectorConfig cfg;
-        cfg.preset = static_cast<Models::Sidechain::TimingPosition>(i);
-        Models::Sidechain::RectifierDetector det(cfg);
+        Analog::Models::Sidechain::RectifierDetector det(
+            Models::Sidechain::toDetectorConfig(static_cast<Models::Sidechain::TimingPosition>(i)));
         det.prepare(44100.0);
 
         for (float v : {0.0f, 0.1f, -0.1f, 0.5f, -0.5f, 1.0f, -1.0f}) {
@@ -72,7 +72,7 @@ TEST_CASE("RectifierDetector: output is finite for all presets", "[detector][sta
 }
 
 TEST_CASE("RectifierDetector: output is non-negative (rectified)", "[detector][rectification]") {
-    Models::Sidechain::RectifierDetector det;
+    Analog::Models::Sidechain::RectifierDetector det;
     det.prepare(44100.0);
 
     for (int i = 0; i < 500; ++i) {
@@ -86,8 +86,8 @@ TEST_CASE("RectifierDetector: output is non-negative (rectified)", "[detector][r
 TEST_CASE("RectifierDetector: positive and negative inputs produce the same envelope",
           "[detector][rectification]") {
     // Full-wave rectification: +A and -A must produce the same final envelope.
-    Models::Sidechain::RectifierDetector detPos;
-    Models::Sidechain::RectifierDetector detNeg;
+    Analog::Models::Sidechain::RectifierDetector detPos;
+    Analog::Models::Sidechain::RectifierDetector detNeg;
     detPos.prepare(44100.0);
     detNeg.prepare(44100.0);
 
@@ -117,13 +117,11 @@ static void checkStepResponseTiming(Models::Sidechain::TimingPosition pos,
     const double tauSec  = testAttack ? preset.attackSec : preset.releaseSec;
     const int    N       = static_cast<int>(std::round(tauSec * sampleRate));
 
-    Models::Sidechain::RectifierDetectorConfig cfg;
-    cfg.preset = pos;
-    Models::Sidechain::RectifierDetector det(cfg);
+    Analog::Models::Sidechain::RectifierDetector det(Models::Sidechain::toDetectorConfig(pos));
     det.prepare(sampleRate);
 
-    // Final value in volts = UnitScaling::kVoltsPerSample * 1.0f (full-scale input).
-    const float finalV = UnitScaling::kVoltsPerSample;   // 10 V
+    // Final value in volts = Analog::kVoltsPerSample * 1.0f (full-scale input).
+    const float finalV = Analog::kVoltsPerSample;   // 10 V
     // Expected CV after N = tau*fs samples: finalV * (1 - 1/e).
     const float expected63 = finalV * static_cast<float>(1.0 - std::exp(-1.0));
 
@@ -205,14 +203,12 @@ TEST_CASE("RectifierDetector: output is smooth — no large inter-sample jumps",
     // For any preset the maximum allowed per-sample change is (1-alpha)*maxCV.
     // We test preset P1 (fastest attack = 0.2 ms) as the worst case, then
     // verify that changes are bounded by the theoretical maximum.
-    Models::Sidechain::RectifierDetectorConfig cfg;
-    cfg.preset = Models::Sidechain::TimingPosition::P1;
-    Models::Sidechain::RectifierDetector det(cfg);
+    Analog::Models::Sidechain::RectifierDetector det(Models::Sidechain::toDetectorConfig(Models::Sidechain::TimingPosition::P1));
     det.prepare(44100.0);
 
     const auto& preset = Models::Sidechain::kTimingPresets[0];
     const double alphaAttack = Models::Sidechain::computeAlpha(preset.attackSec,  44100.0);
-    const float  maxCV       = UnitScaling::kVoltsPerSample; // 10 V
+    const float  maxCV       = Analog::kVoltsPerSample; // 10 V
 
     // Theoretical maximum per-sample jump during attack.
     const float maxJump = static_cast<float>((1.0 - alphaAttack) * maxCV);
@@ -237,7 +233,7 @@ TEST_CASE("RectifierDetector: control voltage is monotonically non-decreasing du
           "[detector][smoothness]") {
     // When a constant full-scale signal is applied, the CV must approach
     // the final value monotonically (no oscillation or overshoot).
-    Models::Sidechain::RectifierDetector det;
+    Analog::Models::Sidechain::RectifierDetector det;
     det.prepare(44100.0);
 
     float prev = 0.0f;
@@ -252,7 +248,7 @@ TEST_CASE("RectifierDetector: control voltage is monotonically non-increasing du
           "[detector][smoothness]") {
     // After a period of full-scale signal, silence must produce a monotonically
     // decaying CV (no oscillation or artefacts).
-    Models::Sidechain::RectifierDetector det;
+    Analog::Models::Sidechain::RectifierDetector det;
     det.prepare(44100.0);
 
     // Charge up.
@@ -270,7 +266,7 @@ TEST_CASE("RectifierDetector: control voltage is monotonically non-increasing du
 // ── RectifierDetector: lifecycle ─────────────────────────────────────────────
 
 TEST_CASE("RectifierDetector: reset restores initial conditions", "[detector][lifecycle]") {
-    Models::Sidechain::RectifierDetector det;
+    Analog::Models::Sidechain::RectifierDetector det;
     det.prepare(44100.0);
 
     // Run for a while, then reset and verify the output matches a fresh instance.
@@ -279,7 +275,7 @@ TEST_CASE("RectifierDetector: reset restores initial conditions", "[detector][li
 
     det.reset();
 
-    Models::Sidechain::RectifierDetector fresh;
+    Analog::Models::Sidechain::RectifierDetector fresh;
     fresh.prepare(44100.0);
 
     for (int i = 0; i < 50; ++i) {
@@ -293,9 +289,7 @@ TEST_CASE("RectifierDetector: all presets produce finite output at different sam
           "[detector][lifecycle]") {
     for (double sr : {8000.0, 44100.0, 48000.0, 96000.0}) {
         for (int p = 0; p < Models::Sidechain::kNumTimingPresets; ++p) {
-            Models::Sidechain::RectifierDetectorConfig cfg;
-            cfg.preset = static_cast<Models::Sidechain::TimingPosition>(p);
-            Models::Sidechain::RectifierDetector det(cfg);
+            Analog::Models::Sidechain::RectifierDetector det(Models::Sidechain::toDetectorConfig(static_cast<Models::Sidechain::TimingPosition>(p)));
             det.prepare(sr);
 
             INFO("sr=" << sr << " preset=" << p);

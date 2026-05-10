@@ -13,9 +13,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "../src/DSP/Models/Sidechain/RectifierDetector.h"
+#include "analog/models/sidechain/RectifierDetector.h"
+#include "../src/DSP/Models/Sidechain/TimingNetworkAdapter.h"
 #include "../src/DSP/Models/Sidechain/TimingNetwork.h"
-#include "../src/DSP/UnitScaling.h"
+#include "analog/dsp/UnitScaling.h"
 
 #include <cmath>
 
@@ -34,12 +35,10 @@ static int measureAttackSamples(TimingPosition pos,
                                 double sampleRate     = 44100.0,
                                 int    maxSamples     = 200000)
 {
-    RectifierDetectorConfig cfg;
-    cfg.preset = pos;
-    RectifierDetector det(cfg);
+    Analog::Models::Sidechain::RectifierDetector det(toDetectorConfig(pos));
     det.prepare(sampleRate);
 
-    const float finalV  = UnitScaling::kVoltsPerSample;
+    const float finalV  = Analog::kVoltsPerSample;
     const float target  = finalV * static_cast<float>(targetFraction);
 
     for (int n = 0; n < maxSamples; ++n) {
@@ -59,9 +58,7 @@ static int measureReleaseSamples(TimingPosition pos,
                                  double sampleRate     = 44100.0,
                                  int    maxSamples     = 2000000)
 {
-    RectifierDetectorConfig cfg;
-    cfg.preset = pos;
-    RectifierDetector det(cfg);
+    Analog::Models::Sidechain::RectifierDetector det(toDetectorConfig(pos));
     det.prepare(sampleRate);
 
     // Charge up until fully settled.
@@ -209,14 +206,11 @@ static void checkAutoProgramDependentRelease(TimingPosition pos,
     // maxWait: generous 4× the slow release τ.
     const int maxWait = static_cast<int>(preset.autoRelease.slowReleaseSec * sampleRate * 4) + 1;
 
-    RectifierDetectorConfig cfg;
-    cfg.preset = pos;
-
     // --- Short burst recovery ---
     int   burstRecoveryN = 0;
     float burstPeak      = 0.0f;
     {
-        RectifierDetector det(cfg);
+        Analog::Models::Sidechain::RectifierDetector det(toDetectorConfig(pos));
         det.prepare(sampleRate);
 
         const int burstN = static_cast<int>(burstDurationSec * sampleRate);
@@ -238,7 +232,7 @@ static void checkAutoProgramDependentRelease(TimingPosition pos,
     int   sustainedRecoveryN = 0;
     float sustainedPeak      = 0.0f;
     {
-        RectifierDetector det(cfg);
+        Analog::Models::Sidechain::RectifierDetector det(toDetectorConfig(pos));
         det.prepare(sampleRate);
 
         const int sustainN = static_cast<int>(sustainDurationSec * sampleRate);
@@ -333,9 +327,7 @@ static void checkAutoFastRecoveryFasterThanFixedP4(TimingPosition autoPos,
     const int maxWait = static_cast<int>(autoPreset.autoRelease.slowReleaseSec * sampleRate * 3);
 
     auto measure50pct = [&](TimingPosition pos) -> int {
-        RectifierDetectorConfig cfg;
-        cfg.preset = pos;
-        RectifierDetector det(cfg);
+        Analog::Models::Sidechain::RectifierDetector det(toDetectorConfig(pos));
         det.prepare(sampleRate);
         for (int i = 0; i < burstN; ++i)
             det.processSample(1.0f);

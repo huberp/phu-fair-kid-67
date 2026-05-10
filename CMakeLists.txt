@@ -44,6 +44,7 @@ if(PHU_BUILD_PLUGIN)
     # Static libs linked into a shared library (VST3) need PIC
     set_target_properties(PhuNetworkLib PROPERTIES POSITION_INDEPENDENT_CODE ON)
     set_target_properties(PhuGLUtils PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    set_target_properties(PhuAnalogLib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
     # Plugin support library
     add_library(PhuFairKidLib INTERFACE)
@@ -51,10 +52,10 @@ if(PHU_BUILD_PLUGIN)
         PhuAudioLib
         PhuNetworkLib
         PhuGLUtils
+        PhuAnalogLib
     )
 
     add_subdirectory(src)
+    add_subdirectory(tests)
+    add_subdirectory(tools)
 endif()
-
-add_subdirectory(tests)
-add_subdirectory(tools)

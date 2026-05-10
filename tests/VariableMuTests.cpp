@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "../src/DSP/Models/Fairchild/VariableMuStage.h"
-#include "../src/DSP/UnitScaling.h"
+#include "analog/models/VariableMuStage.h"
+#include "analog/dsp/UnitScaling.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,7 +13,7 @@
 
 /// Process `warmupSamples` silent samples at the given CV, then return the
 /// stage ready to measure.
-static Models::VariableMuStage makeWarmedStage(float cv = 0.0f,
+static Analog::Models::VariableMuStage makeWarmedStage(float cv = 0.0f,
                                                double sampleRate = 44100.0,
                                                int warmupSamples = 2000)
 {
@@ -26,7 +26,7 @@ static Models::VariableMuStage makeWarmedStage(float cv = 0.0f,
 }
 
 /// Measure peak-to-peak output swing of a sine wave over `cycles` full periods.
-static float measurePeakToPeak(Models::VariableMuStage& stage,
+static float measurePeakToPeak(Analog::Models::VariableMuStage& stage,
                                 float amplitude, double freqHz = 100.0,
                                 double sampleRate = 44100.0, int cycles = 5)
 {

@@ -1,12 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "../src/DSP/Circuit/Nonlinear/TriodeKoren.h"
+#include "analog/nonlinear/TriodeKoren.h"
 
 #include <cmath>
 #include <limits>
 
-using namespace Circuit::Nonlinear;
+using namespace Analog::Nonlinear;
 
 // ── TubeParams presets sanity ─────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "../src/DSP/Circuit/Circuit.h"
+#include "analog/circuit/Circuit.h"
 
 #include <cmath>
 
@@ -20,7 +20,7 @@ TEST_CASE("Inductor: RL step response, V_L decays to zero after 5 tau",
     const double L   = 10e-3;  // 10 mH
     const double tau = L / R;  // 1 ms
 
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(R, 1, 2);
     mna.stampInductor(L, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
@@ -47,7 +47,7 @@ TEST_CASE("Inductor: RL step response at t = tau", "[inductor][rl]")
     const double L   = 10e-3;
     const double tau = L / R;
 
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(R, 1, 2);
     mna.stampInductor(L, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
@@ -72,7 +72,7 @@ TEST_CASE("Inductor: DC stability, no drift or blow-up", "[inductor][stability]"
     const double R = 1000.0;
     const double L = 10e-3;
 
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(R, 1, 2);
     mna.stampInductor(L, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
@@ -97,7 +97,7 @@ TEST_CASE("Inductor: reset clears inductor state", "[inductor][lifecycle]")
     const double R = 10.0;
     const double L = 10e-3; // τ = 1 ms = 1 sample at 1 kHz
 
-    Circuit::Circuit mna(2, 1);
+    Analog::Circuit::Circuit mna(2, 1);
     mna.stampResistor(R, 1, 2);
     mna.stampInductor(L, 2, 0);
     mna.stampVoltageSource(0, 1, 0);
@@ -131,7 +131,7 @@ TEST_CASE("Inductor: DC response is sample-rate independent", "[inductor][dc]")
         const double tau = L / R;
         const int    N   = static_cast<int>(10.0 * tau * sr);
 
-        Circuit::Circuit mna(2, 1);
+        Analog::Circuit::Circuit mna(2, 1);
         mna.stampResistor(R, 1, 2);
         mna.stampInductor(L, 2, 0);
         mna.stampVoltageSource(0, 1, 0);
@@ -165,7 +165,7 @@ TEST_CASE("CoupledInductors: coupling transfers AC signal to secondary",
     const double M      = k * L;
 
     auto measureSecondaryRMS = [&](double coupling_M) {
-        Circuit::Circuit mna(3, 1);
+        Analog::Circuit::Circuit mna(3, 1);
         mna.stampResistor(R_prim, 1, 2);
         mna.stampResistor(R_load, 3, 0);
         mna.stampCoupledInductors(L, L, coupling_M, 2, 0, 3, 0);
@@ -216,7 +216,7 @@ TEST_CASE("CoupledInductors: stronger coupling increases secondary signal",
 
     auto measureRMS = [&](double k_coeff) {
         const double M = k_coeff * L;
-        Circuit::Circuit mna(3, 1);
+        Analog::Circuit::Circuit mna(3, 1);
         mna.stampResistor(R_prim, 1, 2);
         mna.stampResistor(R_load, 3, 0);
         mna.stampCoupledInductors(L, L, M, 2, 0, 3, 0);
@@ -264,7 +264,7 @@ TEST_CASE("CoupledInductors: turns-ratio 1:4 boosts secondary voltage",
     const double k  = 0.95;
     const double M  = k * std::sqrt(L1 * L2);
 
-    Circuit::Circuit mna(3, 1);
+    Analog::Circuit::Circuit mna(3, 1);
     mna.stampResistor(50.0,  1, 2);   // R_primary
     mna.stampResistor(200.0, 3, 0);   // R_load  (≈ n²·R_prim for matched load)
     mna.stampCoupledInductors(L1, L2, M, 2, 0, 3, 0);
@@ -312,7 +312,7 @@ TEST_CASE("CoupledInductors: DC stability, no drift or blow-up",
     const double k = 0.8;
     const double M = k * L;
 
-    Circuit::Circuit mna(3, 1);
+    Analog::Circuit::Circuit mna(3, 1);
     mna.stampResistor(100.0, 1, 2);  // R_primary
     mna.stampResistor(100.0, 3, 0);  // R_load
     mna.stampCoupledInductors(L, L, M, 2, 0, 3, 0);
@@ -341,7 +341,7 @@ TEST_CASE("CoupledInductors: reset clears coupled state",
     const double L = 0.1;
     const double M = 0.8 * L;
 
-    Circuit::Circuit mna(3, 1);
+    Analog::Circuit::Circuit mna(3, 1);
     mna.stampResistor(10.0, 1, 2);
     mna.stampResistor(10.0, 3, 0);
     mna.stampCoupledInductors(L, L, M, 2, 0, 3, 0);

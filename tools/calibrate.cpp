@@ -28,7 +28,7 @@
 
 #include "../src/DSP/Models/Fairchild/Fairchild670Core.h"
 #include "../src/DSP/Models/Sidechain/TimingNetwork.h"
-#include "../src/DSP/UnitScaling.h"
+#include "../src/DSP/Models/Sidechain/TimingNetworkAdapter.h"
 
 #include <algorithm>
 #include <cassert>
@@ -87,9 +87,7 @@ static void measureTiming(std::ostream& out,
     const int attackN  = static_cast<int>(attackDuration  * sampleRate) + 1;
     const int releaseN = static_cast<int>(releaseDuration * sampleRate) + 1;
 
-    RectifierDetectorConfig cfg;
-    cfg.preset = pos;
-    RectifierDetector det(cfg);
+    Analog::Models::Sidechain::RectifierDetector det(toDetectorConfig(pos));
     det.prepare(sampleRate);
 
     out << "# timing_measurement\n";
@@ -156,7 +154,7 @@ static void measureTransfer(std::ostream& out,
 
         Fairchild670CoreConfig cfg;
         cfg.linkMode           = LinkMode::Independent;
-        cfg.detectorCfg.preset = pos;
+        cfg.timingPreset = pos;
 
         Fairchild670Core core(cfg);
         core.prepare(sampleRate);

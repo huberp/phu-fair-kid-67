@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "../src/DSP/Models/TubeStage.h"
-#include "../src/DSP/UnitScaling.h"
+#include "analog/models/TubeStage.h"
+#include "analog/dsp/UnitScaling.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,7 +13,7 @@
 
 /// Process `warmupSamples` silent samples then return the stage, ready to
 /// measure.  A new stage is created each time to ensure test isolation.
-static Models::TubeStage makeWarmedStage(double sampleRate = 44100.0,
+static Analog::Models::TubeStage makeWarmedStage(double sampleRate = 44100.0,
                                          int warmupSamples = 2000)
 {
     Models::TubeStage stage;
@@ -25,7 +25,7 @@ static Models::TubeStage makeWarmedStage(double sampleRate = 44100.0,
 
 /// Measure the peak-to-peak output swing of a sine wave at the given amplitude
 /// over `cycles` complete periods of `freqHz`.
-static float measurePeakToPeak(Models::TubeStage& stage,
+static float measurePeakToPeak(Analog::Models::TubeStage& stage,
                                 float amplitude, double freqHz = 100.0,
                                 double sampleRate = 44100.0, int cycles = 5)
 {

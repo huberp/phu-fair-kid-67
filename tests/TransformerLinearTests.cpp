@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "../src/DSP/Models/Transformer/TransformerLinear.h"
+#include "analog/models/transformer/TransformerLinear.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,7 +13,7 @@
 
 /// Measure the RMS output level of a sine burst at `freqHz` after the filter
 /// has been given `warmupSamples` of silence to settle.
-static float measureRMS(Models::TransformerLinear& xfmr,
+static float measureRMS(Analog::Models::TransformerLinear& xfmr,
                          float amplitude, double freqHz,
                          double sampleRate = 44100.0,
                          int numSamples = 4096)

@@ -79,7 +79,7 @@ TEST_CASE("Fairchild670Core: finite output at all timing presets", "[670core][st
     for (auto pos : {TimingPosition::P1, TimingPosition::P2, TimingPosition::P3,
                      TimingPosition::P4, TimingPosition::P5, TimingPosition::P6}) {
         Models::Fairchild670CoreConfig cfg;
-        cfg.detectorCfg.preset = pos;
+        cfg.timingPreset = pos;
         Models::Fairchild670Core core(cfg);
         core.prepare(44100.0);
 

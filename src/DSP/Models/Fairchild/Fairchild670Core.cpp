@@ -1,6 +1,6 @@
 #include "Fairchild670Core.h"
 
-#include "../../UnitScaling.h"
+#include "analog/dsp/UnitScaling.h"
 
 #include <algorithm>
 #include <cmath>
@@ -15,8 +15,8 @@ Fairchild670Core::Fairchild670Core(Fairchild670CoreConfig cfg) noexcept
     , stageR_(cfg_.stageCfg)
     , transformerL_(cfg_.transformerCfg)
     , transformerR_(cfg_.transformerCfg)
-    , detectorL_(cfg_.detectorCfg)
-    , detectorR_(cfg_.detectorCfg)
+    , detectorL_(Sidechain::toDetectorConfig(cfg_.timingPreset))
+    , detectorR_(Sidechain::toDetectorConfig(cfg_.timingPreset))
 {}
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ void Fairchild670Core::setQuality(ProcessingQuality quality) noexcept
 {
     // Build an NR config derived from the stage's original template, but with
     // the iteration limit adjusted for the requested quality level.
-    Circuit::Nonlinear::NRConfig nr = cfg_.stageCfg.nr;
+    Analog::Nonlinear::NRConfig nr = cfg_.stageCfg.nr;
     nr.maxIterations = (quality == ProcessingQuality::Draft) ? 8 : 20;
     stageL_.setNRConfig(nr);
     stageR_.setNRConfig(nr);
@@ -65,15 +65,15 @@ void Fairchild670Core::setCathodeBypassCapacitance(double farads) noexcept
 
 void Fairchild670Core::setTimingPosition(Sidechain::TimingPosition pos) noexcept
 {
-    cfg_.detectorCfg.preset = pos;
+    cfg_.timingPreset = pos;
 
     // Preserve current CV state across the timing change by saving and
     // restoring the control voltage after reinitialising the detectors.
     const float savedCvL = detectorL_.controlVoltage();
     const float savedCvR = detectorR_.controlVoltage();
 
-    detectorL_ = Sidechain::RectifierDetector(cfg_.detectorCfg);
-    detectorR_ = Sidechain::RectifierDetector(cfg_.detectorCfg);
+    detectorL_ = Analog::Models::Sidechain::RectifierDetector(Sidechain::toDetectorConfig(pos));
+    detectorR_ = Analog::Models::Sidechain::RectifierDetector(Sidechain::toDetectorConfig(pos));
     detectorL_.prepare(sampleRate_);
     detectorR_.prepare(sampleRate_);
 
@@ -81,8 +81,8 @@ void Fairchild670Core::setTimingPosition(Sidechain::TimingPosition pos) noexcept
     // samples that produce that level.  This avoids a sudden CV jump.
     // We use the saved CV directly via a short steady-state feed (one sample
     // is enough for a constant level since the detector is deterministic).
-    (void)detectorL_.processSample(savedCvL / UnitScaling::kVoltsPerSample);
-    (void)detectorR_.processSample(savedCvR / UnitScaling::kVoltsPerSample);
+    (void)detectorL_.processSample(savedCvL / Analog::kVoltsPerSample);
+    (void)detectorR_.processSample(savedCvR / Analog::kVoltsPerSample);
 }
 
 // ── Per-sample processing ─────────────────────────────────────────────────────

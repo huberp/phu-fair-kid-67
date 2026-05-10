@@ -95,7 +95,7 @@ static TransferMeasurement measureTransfer(
 {
     Fairchild670CoreConfig cfg;
     cfg.linkMode         = LinkMode::Independent;
-    cfg.detectorCfg.preset = pos;
+    cfg.timingPreset = pos;
 
     Fairchild670Core core(cfg);
     core.prepare(sampleRate);

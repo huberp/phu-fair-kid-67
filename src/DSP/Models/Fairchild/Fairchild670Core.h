@@ -1,8 +1,9 @@
 #pragma once
 
-#include "VariableMuStage.h"
-#include "../Transformer/TransformerLinear.h"
-#include "../Sidechain/RectifierDetector.h"
+#include "analog/models/VariableMuStage.h"
+#include "analog/models/transformer/TransformerLinear.h"
+#include "analog/models/sidechain/RectifierDetector.h"
+#include "../Sidechain/TimingNetworkAdapter.h"
 
 #include <algorithm>
 
@@ -56,14 +57,14 @@ struct Fairchild670CoreConfig {
     /// Envelope combination strategy (used only when linkMode == Linked).
     LinkedEnvelopeStrategy envelopeStrategy = LinkedEnvelopeStrategy::Max;
 
-    /// Sidechain detector configuration (same timing preset applied to L and R).
-    Sidechain::RectifierDetectorConfig detectorCfg;
+    /// Sidechain timing preset (same preset applied to L and R detectors).
+    Sidechain::TimingPosition timingPreset = Sidechain::TimingPosition::P1;
 
     /// Variable-mu gain stage configuration (same circuit for L and R).
-    VariableMuStageConfig stageCfg;
+    Analog::Models::VariableMuStageConfig stageCfg;
 
     /// Output transformer coloration configuration (same circuit for L and R).
-    TransformerLinearConfig transformerCfg;
+    Analog::Models::TransformerLinearConfig transformerCfg;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,12 +158,12 @@ private:
     float  thresholdVoltageL_ = 10.0f; ///< Left-channel threshold in volts; 10 V = no compression.
     float  thresholdVoltageR_ = 10.0f; ///< Right-channel threshold in volts; 10 V = no compression.
 
-    VariableMuStage              stageL_;
-    VariableMuStage              stageR_;
-    TransformerLinear            transformerL_;
-    TransformerLinear            transformerR_;
-    Sidechain::RectifierDetector detectorL_;
-    Sidechain::RectifierDetector detectorR_;
+    Analog::Models::VariableMuStage              stageL_;
+    Analog::Models::VariableMuStage              stageR_;
+    Analog::Models::TransformerLinear            transformerL_;
+    Analog::Models::TransformerLinear            transformerR_;
+    Analog::Models::Sidechain::RectifierDetector detectorL_;
+    Analog::Models::Sidechain::RectifierDetector detectorR_;
 
     Fairchild670Meters meters_;
 };
