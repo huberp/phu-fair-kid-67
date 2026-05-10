@@ -162,12 +162,12 @@ TEST_CASE("RectifierDetector: attack step response — preset 1 (0.2 ms)",
     checkStepResponseTiming(Models::Sidechain::TimingPosition::P1, /*attack=*/true);
 }
 
-TEST_CASE("RectifierDetector: attack step response — preset 3 (0.4 ms)",
+TEST_CASE("RectifierDetector: attack step response — preset 3 (0.2 ms)",
           "[detector][timing][attack]") {
     checkStepResponseTiming(Models::Sidechain::TimingPosition::P3, /*attack=*/true);
 }
 
-TEST_CASE("RectifierDetector: attack step response — preset 6 (8 ms)",
+TEST_CASE("RectifierDetector: attack step response — preset 6 (0.2 ms)",
           "[detector][timing][attack]") {
     checkStepResponseTiming(Models::Sidechain::TimingPosition::P6, /*attack=*/true);
 }
@@ -184,7 +184,18 @@ TEST_CASE("RectifierDetector: release step response — preset 3 (2.0 s)",
 
 TEST_CASE("RectifierDetector: release step response — preset 6 (25 s)",
           "[detector][timing][release]") {
-    checkStepResponseTiming(Models::Sidechain::TimingPosition::P6, /*attack=*/false);
+    // P6 is now an AutoRelease preset.  The single-time-constant step-response
+    // model does not apply to it; programme-dependent release behaviour is
+    // verified instead by TimingConformanceTests.cpp.
+    // We simply confirm that P6 is an AutoRelease preset and skip the
+    // fixed-release timing check.
+    using namespace Models::Sidechain;
+    const auto& preset = kTimingPresets[static_cast<int>(TimingPosition::P6)];
+    if (preset.kind == TimingKind::AutoRelease) {
+        SKIP("P6 uses AutoRelease mode: single-RC step-response test not applicable. "
+             "See TimingConformanceTests for P6 programme-dependent release tests.");
+    }
+    checkStepResponseTiming(TimingPosition::P6, /*attack=*/false);
 }
 
 // ── RectifierDetector: smoothness (no zippering) ─────────────────────────────
