@@ -153,6 +153,42 @@ target_compile_features(phu_transformer_coupling_tests PRIVATE cxx_std_17)
 
 target_link_libraries(phu_transformer_coupling_tests PRIVATE Catch2::Catch2WithMain)
 
+add_executable(phu_timing_conformance_tests
+    TimingConformanceTests.cpp
+    ../src/DSP/Models/Sidechain/RectifierDetector.cpp
+    ../src/DSP/Models/Sidechain/TimingNetwork.cpp
+)
+
+target_include_directories(phu_timing_conformance_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+target_compile_features(phu_timing_conformance_tests PRIVATE cxx_std_17)
+
+target_compile_definitions(phu_timing_conformance_tests PRIVATE _USE_MATH_DEFINES)
+
+target_link_libraries(phu_timing_conformance_tests PRIVATE Catch2::Catch2WithMain)
+
+add_executable(phu_transfer_curve_tests
+    TransferCurveTests.cpp
+    ../src/DSP/Models/Fairchild/Fairchild670Core.cpp
+    ../src/DSP/Models/Fairchild/VariableMuStage.cpp
+    ../src/DSP/Models/Transformer/TransformerLinear.cpp
+    ../src/DSP/Models/Sidechain/RectifierDetector.cpp
+    ../src/DSP/Models/Sidechain/TimingNetwork.cpp
+    ../src/DSP/Circuit/Nonlinear/TriodeKoren.cpp
+)
+
+target_include_directories(phu_transfer_curve_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+target_compile_features(phu_transfer_curve_tests PRIVATE cxx_std_17)
+
+target_compile_definitions(phu_transfer_curve_tests PRIVATE _USE_MATH_DEFINES)
+
+target_link_libraries(phu_transfer_curve_tests PRIVATE Catch2::Catch2WithMain)
+
 include(Catch)
 catch_discover_tests(phu_dsp_tests)
 catch_discover_tests(phu_circuit_tests)
@@ -164,3 +200,5 @@ catch_discover_tests(phu_variable_mu_tests)
 catch_discover_tests(phu_fairchild670core_tests)
 catch_discover_tests(phu_transformer_linear_tests)
 catch_discover_tests(phu_transformer_coupling_tests)
+catch_discover_tests(phu_timing_conformance_tests)
+catch_discover_tests(phu_transfer_curve_tests)
