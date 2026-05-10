@@ -74,9 +74,15 @@ static void measureTiming(std::ostream& out,
     const auto& preset = kTimingPresets[positionIdx];
 
     // Determine how long to run each phase.
-    // For AutoRelease the slow branch dominates, so use slowReleaseSec.
+    // For AutoRelease presets the output is determined by both branches; use
+    // the slow branch constant so the full release tail is captured.
+    const double effectiveReleaseSec =
+        (preset.kind == TimingKind::AutoRelease)
+            ? preset.autoRelease.slowReleaseSec
+            : preset.releaseSec;
+
     const double attackDuration  = std::max(0.01, preset.attackSec * 10.0);
-    const double releaseDuration = preset.releaseSec * 3.0;
+    const double releaseDuration = effectiveReleaseSec * 3.0;
 
     const int attackN  = static_cast<int>(attackDuration  * sampleRate) + 1;
     const int releaseN = static_cast<int>(releaseDuration * sampleRate) + 1;

@@ -69,6 +69,9 @@ private:
     float  cvSlow_    = 0.0f;   ///< Slow-branch envelope state (AutoRelease only).
 
     float  cv_        = 0.0f;   ///< Current control voltage (V) — output of processSample().
+
+    // Cached preset kind — set in prepare() to avoid per-sample table lookups.
+    TimingKind kind_ = TimingKind::Fixed;
 };
 
 } // namespace Models::Sidechain

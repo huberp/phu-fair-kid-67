@@ -13,7 +13,8 @@ RectifierDetector::RectifierDetector(RectifierDetectorConfig cfg) noexcept
 void RectifierDetector::prepare(double sampleRate) noexcept
 {
     const auto& preset = kTimingPresets[static_cast<int>(cfg_.preset)];
-    alphaAttack_ = computeAlpha(preset.attackSec, sampleRate);
+    kind_         = preset.kind;
+    alphaAttack_  = computeAlpha(preset.attackSec, sampleRate);
 
     if (preset.kind == TimingKind::Fixed) {
         alphaRelease_ = computeAlpha(preset.releaseSec, sampleRate);
@@ -36,9 +37,7 @@ float RectifierDetector::processSample(float sample) noexcept
     // 1. Scale to volts and full-wave rectify.
     const float rect = std::abs(UnitScaling::sampleToVolts(sample));
 
-    const auto& preset = kTimingPresets[static_cast<int>(cfg_.preset)];
-
-    if (preset.kind == TimingKind::Fixed) {
+    if (kind_ == TimingKind::Fixed) {
         // 2. Choose the appropriate smoothing coefficient.
         const double alpha = (rect > cv_) ? alphaAttack_ : alphaRelease_;
 
