@@ -34,10 +34,18 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def _detect_encoding(path: str) -> str:
+    """Return 'utf-16' if the file starts with a UTF-16 BOM, else 'utf-8'."""
+    with open(path, "rb") as f:
+        bom = f.read(2)
+    return "utf-16" if bom in (b"\xff\xfe", b"\xfe\xff") else "utf-8"
+
+
 def load_transfer_csv(path: str) -> tuple[list, dict]:
     meta: dict = {}
     rows: list = []
-    with open(path, newline="") as f:
+    encoding = _detect_encoding(path)
+    with open(path, newline="", encoding=encoding) as f:
         header_seen = False
         for line in f:
             line = line.rstrip()

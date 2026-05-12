@@ -47,6 +47,22 @@ if(PHU_BUILD_PLUGIN)
     set_target_properties(PhuGLUtils PROPERTIES POSITION_INDEPENDENT_CODE ON)
     set_target_properties(PhuAnalogLib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+    # Fairchild model sources as a single static lib (JUCE-free; shared by plugin, tools, and tests)
+    add_library(PhuFairchildModels STATIC
+        src/DSP/Models/Fairchild/Fairchild670Core.cpp
+        src/DSP/Models/Fairchild/VariableMuPushPullStage.cpp
+        src/DSP/Models/Transformer/TransformerSecondOrder.cpp
+        src/DSP/Models/Sidechain/TimingNetwork.cpp
+    )
+    target_include_directories(PhuFairchildModels PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${PHU_AUDIO_LIB_ROOT}
+    )
+    target_compile_features(PhuFairchildModels PUBLIC cxx_std_17)
+    target_compile_definitions(PhuFairchildModels PRIVATE _USE_MATH_DEFINES)
+    target_link_libraries(PhuFairchildModels PUBLIC PhuAnalogLib)
+    set_target_properties(PhuFairchildModels PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
     # Plugin support library
     add_library(PhuFairKidLib INTERFACE)
     target_link_libraries(PhuFairKidLib INTERFACE
@@ -54,6 +70,7 @@ if(PHU_BUILD_PLUGIN)
         PhuNetworkLib
         PhuGLUtils
         PhuAnalogLib
+        PhuFairchildModels
     )
 
     add_subdirectory(src)
@@ -64,6 +81,21 @@ else()
         add_subdirectory("${PHU_AUDIO_LIB_ROOT}/analog")
     else()
         message(WARNING "phu-audio-lib analog directory not found; tests will not be built.")
+    endif()
+    if(TARGET PhuAnalogLib)
+        add_library(PhuFairchildModels STATIC
+            src/DSP/Models/Fairchild/Fairchild670Core.cpp
+            src/DSP/Models/Fairchild/VariableMuPushPullStage.cpp
+            src/DSP/Models/Transformer/TransformerSecondOrder.cpp
+            src/DSP/Models/Sidechain/TimingNetwork.cpp
+        )
+        target_include_directories(PhuFairchildModels PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${PHU_AUDIO_LIB_ROOT}
+        )
+        target_compile_features(PhuFairchildModels PUBLIC cxx_std_17)
+        target_compile_definitions(PhuFairchildModels PRIVATE _USE_MATH_DEFINES)
+        target_link_libraries(PhuFairchildModels PUBLIC PhuAnalogLib)
     endif()
 endif()
 

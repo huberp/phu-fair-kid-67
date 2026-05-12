@@ -90,6 +90,21 @@ struct Fairchild670CoreConfig {
     /// in volts is below this value.  Set to 0.0 for an ideal rectifier.
     float tubeRectifierForwardVoltageV = 0.8f;
 
+    /// Sidechain amplifier gain — scales the 6AL5 detector output before it
+    /// is applied to the 6386 control grids.
+    ///
+    /// In the hardware Fairchild 670 the sidechain signal is amplified by a
+    /// dedicated tube chain (12AX7 → 12BH7 → 6973 → output transformer T104)
+    /// before reaching the 6AL5 detector.  The detector then drives the 6386
+    /// grids through only a 30 Ω timing resistor (R107/R108) and a 33 Ω stopper
+    /// (R111) — no amplifying divider network exists in that path.
+    ///
+    /// This scalar therefore represents the net level difference introduced by
+    /// the sidechain amplifier chain that is not otherwise modelled in software.
+    /// At 1.5 the applied CV reaches the 8 V ceiling (cvMaxV) at 0 dBFS input,
+    /// producing ≥ 20 dB gain reduction as specified by the hardware.
+    float sidechainAmplifierGain = 1.5f;
+
     /// [P5] Interstage transformer coloration (between variable-mu and output stages).
     /// Default: HPF=25 Hz, LPF=22 kHz, drive=1.1 — slightly tighter than the output
     /// transformer, matching the narrower bandwidth typically seen in interstage
@@ -114,7 +129,12 @@ struct Fairchild670CoreConfig {
     static Analog::Models::VariableMuStageConfig makeStageCfg6386()
     {
         Analog::Models::VariableMuStageConfig cfg;
-        cfg.tube = DSP::tubeParams6386();
+        cfg.tube   = DSP::tubeParams6386();
+        // [P4] Raise the CV ceiling from the library default of 6.0 V to 8.0 V so
+        // that the full detector output range (up to ~8.2 V at 0 dBFS) can be
+        // applied to the tube.  Without this, the sidechain CV is clipped to 6 V
+        // before the Koren model ever sees it, limiting max GR.
+        cfg.cvMaxV = 8.0;
         return cfg;
     }
 

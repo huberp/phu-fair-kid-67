@@ -46,14 +46,14 @@ struct TransferPoint {
 /// with threshold=0 V and P1.  NOT from hardware measurements.
 /// TODO: replace with digitised Fairchild 670 manual data when available.
 static const std::vector<TransferPoint> kTransferReference = {
-    { -60.0f, -63.05f,  0.04f },   // silence floor — well below any knee
-    { -40.0f, -43.05f,  0.04f },   // very low level — near unity gain
-    { -24.0f, -27.09f,  0.08f },   // low level — slight compression
-    { -18.0f, -21.48f,  0.47f },   // gentle compression begins
-    { -12.0f, -16.97f,  1.96f },   // moderate compression
-    {  -6.0f, -15.61f,  6.61f },   // noticeable gain reduction (6AL5 soft onset reduces CV)
-    {  -3.0f, -14.99f,  8.98f },   // significant limiting
-    {   0.0f, -14.22f, 11.21f },   // heavy limiting at full scale
+    { -60.0f, -63.07f,  0.05f },   // silence floor — well below any knee
+    { -40.0f, -43.07f,  0.05f },   // very low level — near unity gain
+    { -24.0f, -27.11f,  0.09f },   // low level — slight compression
+    { -18.0f, -21.65f,  0.63f },   // gentle compression begins
+    { -12.0f, -17.84f,  2.82f },   // moderate compression
+    {  -6.0f, -20.49f, 11.47f },   // noticeable gain reduction (Vgk≤0 clamp active)
+    {  -3.0f, -25.33f, 19.31f },   // significant limiting
+    {   0.0f, -25.68f, 22.66f },   // heavy limiting at full scale (saturates at cvMaxV=8V)
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -241,7 +241,7 @@ TEST_CASE("TransferCurve: qualitative comparison against manual reference (±4 d
         auto m = measureTransfer(amp,
                                  Sidechain::TimingPosition::P1,
                                  44100.0,
-                                 /*settleN=*/  50000,
+                                 /*settleN=*/  200000,
                                  /*measureN=*/ 8192,
                                  /*threshV=*/  0.0f);
 

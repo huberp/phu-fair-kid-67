@@ -43,12 +43,11 @@ target_link_libraries(phu_tube_stage_tests PRIVATE Catch2::Catch2WithMain PhuAna
 
 add_executable(phu_detector_tests
     DetectorTests.cpp
-    ../src/DSP/Models/Sidechain/TimingNetwork.cpp
 )
 target_include_directories(phu_detector_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
 target_compile_features(phu_detector_tests PRIVATE cxx_std_17)
 target_compile_definitions(phu_detector_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_detector_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
+target_link_libraries(phu_detector_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
 
 add_executable(phu_variable_mu_tests VariableMuTests.cpp)
 target_include_directories(phu_variable_mu_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
@@ -60,44 +59,37 @@ target_link_libraries(phu_variable_mu_tests PRIVATE Catch2::Catch2WithMain PhuAn
 
 add_executable(phu_variable_mu_push_pull_tests
     VariableMuPushPullTests.cpp
-    ../src/DSP/Models/Fairchild/VariableMuPushPullStage.cpp
 )
 target_include_directories(phu_variable_mu_push_pull_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
 target_compile_features(phu_variable_mu_push_pull_tests PRIVATE cxx_std_17)
 target_compile_definitions(phu_variable_mu_push_pull_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_variable_mu_push_pull_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
+target_link_libraries(phu_variable_mu_push_pull_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
 
 add_executable(phu_soft_rectifier_tests
     SoftRectifierDetectorTests.cpp
-    ../src/DSP/Models/Sidechain/TimingNetwork.cpp
 )
 target_include_directories(phu_soft_rectifier_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
 target_compile_features(phu_soft_rectifier_tests PRIVATE cxx_std_17)
 target_compile_definitions(phu_soft_rectifier_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_soft_rectifier_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
+target_link_libraries(phu_soft_rectifier_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
 
 add_executable(phu_transformer_second_order_tests
     TransformerSecondOrderTests.cpp
-    ../src/DSP/Models/Transformer/TransformerSecondOrder.cpp
 )
 target_include_directories(phu_transformer_second_order_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
 target_compile_features(phu_transformer_second_order_tests PRIVATE cxx_std_17)
 target_compile_definitions(phu_transformer_second_order_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_transformer_second_order_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
+target_link_libraries(phu_transformer_second_order_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
 
 # ── Fairchild core tests (include new .cpp files) ─────────────────────────────
 
 add_executable(phu_fairchild670core_tests
     Fairchild670CoreTests.cpp
-    ../src/DSP/Models/Fairchild/Fairchild670Core.cpp
-    ../src/DSP/Models/Fairchild/VariableMuPushPullStage.cpp
-    ../src/DSP/Models/Transformer/TransformerSecondOrder.cpp
-    ../src/DSP/Models/Sidechain/TimingNetwork.cpp
 )
 target_include_directories(phu_fairchild670core_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
 target_compile_features(phu_fairchild670core_tests PRIVATE cxx_std_17)
 target_compile_definitions(phu_fairchild670core_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_fairchild670core_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
+target_link_libraries(phu_fairchild670core_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
 
 add_executable(phu_transformer_linear_tests TransformerLinearTests.cpp)
 target_include_directories(phu_transformer_linear_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
@@ -112,24 +104,19 @@ target_link_libraries(phu_transformer_coupling_tests PRIVATE Catch2::Catch2WithM
 
 add_executable(phu_timing_conformance_tests
     TimingConformanceTests.cpp
-    ../src/DSP/Models/Sidechain/TimingNetwork.cpp
 )
 target_include_directories(phu_timing_conformance_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
 target_compile_features(phu_timing_conformance_tests PRIVATE cxx_std_17)
 target_compile_definitions(phu_timing_conformance_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_timing_conformance_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
+target_link_libraries(phu_timing_conformance_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
 
 add_executable(phu_transfer_curve_tests
     TransferCurveTests.cpp
-    ../src/DSP/Models/Fairchild/Fairchild670Core.cpp
-    ../src/DSP/Models/Fairchild/VariableMuPushPullStage.cpp
-    ../src/DSP/Models/Transformer/TransformerSecondOrder.cpp
-    ../src/DSP/Models/Sidechain/TimingNetwork.cpp
 )
 target_include_directories(phu_transfer_curve_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
 target_compile_features(phu_transfer_curve_tests PRIVATE cxx_std_17)
 target_compile_definitions(phu_transfer_curve_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_transfer_curve_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
+target_link_libraries(phu_transfer_curve_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
 
 include(Catch)
 catch_discover_tests(phu_dsp_tests)

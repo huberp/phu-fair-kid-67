@@ -127,12 +127,15 @@ void Fairchild670Core::processStereo(float inL, float inR,
     const float preampOutL = preampL_.processSample(xfmrInL);
     const float preampOutR = preampR_.processSample(xfmrInR);
 
-    // 3. [P4] Sidechain detectors read the pre-amplifier output (matching the
-    //    hardware where the sidechain taps from the signal path after the input
-    //    transformer).  The 6AL5 forward-voltage dead zone is handled inside the
-    //    SoftRectifierDetector.
-    const float rawCvL = detectorL_.processSample(preampOutL);
-    const float rawCvR = detectorR_.processSample(preampOutR);
+    // 3. [P4] Sidechain detectors tap directly from the input-transformer output,
+    //    matching the hardware topology where the sidechain feeds from the same
+    //    point as the signal path (before the pre-amplifier tube stage).  Using
+    //    the pre-amplifier output here was incorrect: the pre-amp clamps its grid
+    //    to ±inputClampV, which compresses the detector drive and makes the
+    //    threshold control almost ineffective.  The 6AL5 forward-voltage dead
+    //    zone is handled inside the SoftRectifierDetector.
+    const float rawCvL = detectorL_.processSample(xfmrInL);
+    const float rawCvR = detectorR_.processSample(xfmrInR);
 
     // 3b. For Mid/Side link mode, derive the sidechain CV from the Mid signal.
     float effectiveCvL, effectiveCvR;
@@ -164,8 +167,13 @@ void Fairchild670Core::processStereo(float inL, float inR,
     }
 
     // 5. [P2] Apply CV to both push-pull variable-mu stages.
-    stageL_.setCv(finalCvL);
-    stageR_.setCv(finalCvR);
+    //    Scale by cfg_.sidechainAmplifierGain to account for the level added by
+    //    the hardware sidechain tube chain (12AX7 → 12BH7 → 6973 → T104) which
+    //    is not otherwise modelled.  In hardware the 6AL5 output connects to the
+    //    6386 grids through only R107/R108 (30 Ω) and R111 (33 Ω stopper).
+    //    The stage's own cvMaxV clamp limits the maximum applied bias.
+    stageL_.setCv(finalCvL * cfg_.sidechainAmplifierGain);
+    stageR_.setCv(finalCvR * cfg_.sidechainAmplifierGain);
 
     // 6. Audio signal chain:
     //   [P2] Push-pull stage → [P5] interstage transformer → [P6] output transformer.
