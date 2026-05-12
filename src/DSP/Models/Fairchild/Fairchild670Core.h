@@ -1,5 +1,10 @@
 #pragma once
 
+#include "TubePresets6386.h"
+#include "VariableMuPushPullStage.h"
+#include "../Sidechain/SoftRectifierDetector.h"
+#include "../Transformer/TransformerSecondOrder.h"
+
 #include "analog/models/VariableMuStage.h"
 #include "analog/models/transformer/TransformerLinear.h"
 #include "analog/models/sidechain/RectifierDetector.h"
@@ -50,6 +55,17 @@ enum class ProcessingQuality {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Configuration for the Fairchild 670 stereo core.
+///
+/// All default values reflect the enhanced model that includes the following
+/// hardware-accurate components (see fairchild670-spec-traceability.md):
+///
+///   P1  6386 remote-cutoff tube (stageCfg.tube, x=1.0 Koren exponent)
+///   P2  Push-pull differential stage (always active — reduces even harmonics)
+///   P3  Input transformer coloration (inputTransformerCfg)
+///   P4  6AL5 tube-rectifier soft onset (tubeRectifierForwardVoltageV)
+///   P5  Interstage transformer (interstageTransformerCfg)
+///   P6  Second-order output transformer with biquad filters (transformerCfg)
+///   P7  Pre-amplifier tube stage coloration (preampCfg)
 struct Fairchild670CoreConfig {
     /// Stereo link mode.
     LinkMode linkMode = LinkMode::Linked;
@@ -60,39 +76,99 @@ struct Fairchild670CoreConfig {
     /// Sidechain timing preset (same preset applied to L and R detectors).
     Sidechain::TimingPosition timingPreset = Sidechain::TimingPosition::P1;
 
-    /// Variable-mu gain stage configuration (same circuit for L and R).
-    Analog::Models::VariableMuStageConfig stageCfg;
+    /// [P1] Variable-mu gain stage configuration.
+    /// Defaults to the 6386 remote-cutoff tube approximation (x=1.0 Koren exponent).
+    Analog::Models::VariableMuStageConfig stageCfg = makeStageCfg6386();
 
-    /// Output transformer coloration configuration (same circuit for L and R).
-    Analog::Models::TransformerLinearConfig transformerCfg;
+    /// [P3] Input transformer coloration (the first stage the signal touches).
+    /// Default: HPF=30 Hz, LPF=30 kHz, drive=1.2 — wider bandwidth and slightly
+    /// stronger saturation than the output transformer.
+    Analog::Models::TransformerLinearConfig inputTransformerCfg = makeInputTransformerCfg();
+
+    /// [P4] 6AL5 twin-diode forward voltage (≈ 0.8 V).
+    /// The sidechain rectifier does not respond to signals whose peak amplitude
+    /// in volts is below this value.  Set to 0.0 for an ideal rectifier.
+    float tubeRectifierForwardVoltageV = 0.8f;
+
+    /// [P5] Interstage transformer coloration (between variable-mu and output stages).
+    /// Default: HPF=25 Hz, LPF=22 kHz, drive=1.1 — slightly tighter than the output
+    /// transformer, matching the narrower bandwidth typically seen in interstage
+    /// coupling transformers.
+    Analog::Models::TransformerLinearConfig interstageTransformerCfg = makeInterstageTransformerCfg();
+
+    /// [P6] Output transformer coloration — 2nd-order biquad HPF + LPF + tanh saturator.
+    /// Inherits all TransformerLinearConfig fields (hpfCutoffHz, lpfCutoffHz, drive)
+    /// and adds hpfQ / lpfQ (default Q=0.7071, Butterworth — backward compatible).
+    TransformerSecondOrderConfig transformerCfg;
+
+    /// [P7] Pre-amplifier tube stage configuration.
+    /// Defaults to a 12AU7 triode operating at the same B+ and load as the main stage.
+    /// This stage always operates at CV=0 (no compression) and adds harmonic coloration.
+    Analog::Models::VariableMuStageConfig preampCfg = makePreampCfg();
+
+    // ── Default-config factories ───────────────────────────────────────────────
+    // (Used by the member default initialisers above; public so callers can
+    //  build a known-good config as a starting point for customisation.)
+
+    /// Build the default 6386 variable-mu stage config.
+    static Analog::Models::VariableMuStageConfig makeStageCfg6386()
+    {
+        Analog::Models::VariableMuStageConfig cfg;
+        cfg.tube = DSP::tubeParams6386();
+        return cfg;
+    }
+
+    /// Build the default input transformer config.
+    static Analog::Models::TransformerLinearConfig makeInputTransformerCfg()
+    {
+        Analog::Models::TransformerLinearConfig cfg;
+        cfg.hpfCutoffHz = 30.0;
+        cfg.lpfCutoffHz = 30000.0;
+        cfg.drive       = 1.2f;
+        return cfg;
+    }
+
+    /// Build the default interstage transformer config.
+    static Analog::Models::TransformerLinearConfig makeInterstageTransformerCfg()
+    {
+        Analog::Models::TransformerLinearConfig cfg;
+        cfg.hpfCutoffHz = 25.0;
+        cfg.lpfCutoffHz = 22000.0;
+        cfg.drive       = 1.1f;
+        return cfg;
+    }
+
+    /// Build the default 12AU7 pre-amplifier stage config.
+    static Analog::Models::VariableMuStageConfig makePreampCfg()
+    {
+        Analog::Models::VariableMuStageConfig cfg;
+        cfg.tube = Analog::Nonlinear::TubeParams::tubeParams12AU7();
+        return cfg;
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Fairchild 670 stereo compressor core.
 ///
-/// Owns two independent signal paths (L/R), each consisting of a sidechain
-/// RectifierDetector followed by a VariableMuStage.  The link mode controls
-/// whether the two sidechain envelopes are merged before being applied to the
-/// gain stages.
-///
-/// Signal flow per stereo sample:
-///   1. Run detectors: cvL = detectorL(inL), cvR = detectorR(inR).
-///   2. Combine envelope according to link mode:
-///        Independent → finalCvL = cvL, finalCvR = cvR
-///        Linked/Max  → finalCvL = finalCvR = max(cvL, cvR)
-///        Linked/Avg  → finalCvL = finalCvR = (cvL + cvR) / 2
-///   3. Apply combined CV to both gain stages and process audio.
-///   4. Update meter accumulators (CV snapshot + running peaks).
+/// Signal flow per stereo sample (hardware-accurate ordering):
+///   1. Input → input transformer (bandwidth shaping + LF saturation).
+///   2. Pre-amplifier tube stage (harmonic coloration, CV=0).
+///   3. Sidechain detector reads the pre-amplifier output.
+///   4. Envelope link logic → per-channel control voltage.
+///   5. Push-pull variable-mu stage (6386 remote-cutoff model, even-harmonic
+///      cancellation via differential combination).
+///   6. Interstage transformer (inter-stage bandwidth shaping + saturation).
+///   7. Second-order output transformer (2nd-order biquad HPF+LPF + tanh).
 class Fairchild670Core {
 public:
     explicit Fairchild670Core(Fairchild670CoreConfig cfg = {}) noexcept;
 
-    /// Prepare both signal paths for the given sample rate.
+    /// Prepare all signal-path stages for the given sample rate.
     /// Must be called before the first processStereo() and on any sample-rate change.
     void prepare(double sampleRate) noexcept;
 
-    /// Reset both signal paths to zero initial conditions and clear peak meters.
+    /// Reset all signal paths to zero initial conditions and clear peak meters.
     void reset() noexcept;
 
     /// Set the stereo link mode.
@@ -118,7 +194,7 @@ public:
     /// effectiveCvR = max(0, detectorCvR − thresholdVoltage)
     void setThresholdRight(float thresholdVoltage) noexcept { thresholdVoltageR_ = thresholdVoltage; }
 
-    /// Adjust the NR iteration budget on both variable-mu gain stages.
+    /// Adjust the NR iteration budget on the variable-mu and pre-amplifier stages.
     ///
     /// Draft mode reduces the maximum iteration count to 8, saving CPU at
     /// the cost of slightly less accurate nonlinear modelling.  High mode
@@ -135,7 +211,7 @@ public:
     /// @param pos  New timing position (P1–P6).
     void setTimingPosition(Sidechain::TimingPosition pos) noexcept;
 
-    /// Process one stereo sample pair through detectors and gain stages.
+    /// Process one stereo sample pair through the full signal chain.
     ///
     /// @param inL   Left input sample (±1.0 full-scale).
     /// @param inR   Right input sample (±1.0 full-scale).
@@ -154,16 +230,33 @@ public:
 
 private:
     Fairchild670CoreConfig cfg_;
-    double sampleRate_       = 44100.0;
-    float  thresholdVoltageL_ = 10.0f; ///< Left-channel threshold in volts; 10 V = no compression.
-    float  thresholdVoltageR_ = 10.0f; ///< Right-channel threshold in volts; 10 V = no compression.
+    double sampleRate_        = 44100.0;
+    float  thresholdVoltageL_ = 10.0f; ///< Left-channel threshold (V); 10 V = no compression.
+    float  thresholdVoltageR_ = 10.0f; ///< Right-channel threshold (V); 10 V = no compression.
 
-    Analog::Models::VariableMuStage              stageL_;
-    Analog::Models::VariableMuStage              stageR_;
-    Analog::Models::TransformerLinear            transformerL_;
-    Analog::Models::TransformerLinear            transformerR_;
-    Analog::Models::Sidechain::RectifierDetector detectorL_;
-    Analog::Models::Sidechain::RectifierDetector detectorR_;
+    // [P7] Pre-amplifier tube stages (12AU7, CV=0 always).
+    Analog::Models::VariableMuStage   preampL_;
+    Analog::Models::VariableMuStage   preampR_;
+
+    // [P2] Push-pull variable-mu gain stages (6386 remote-cutoff, even-harmonic cancellation).
+    VariableMuPushPullStage           stageL_;
+    VariableMuPushPullStage           stageR_;
+
+    // [P3] Input transformer — first in the signal chain.
+    Analog::Models::TransformerLinear inputTransformerL_;
+    Analog::Models::TransformerLinear inputTransformerR_;
+
+    // [P5] Interstage transformer — between variable-mu and output stages.
+    Analog::Models::TransformerLinear interstageTransformerL_;
+    Analog::Models::TransformerLinear interstageTransformerR_;
+
+    // [P6] Output transformer — 2nd-order biquad model.
+    TransformerSecondOrder            transformerL_;
+    TransformerSecondOrder            transformerR_;
+
+    // [P4] Sidechain soft-onset rectifiers (6AL5 forward-voltage model).
+    Sidechain::SoftRectifierDetector  detectorL_;
+    Sidechain::SoftRectifierDetector  detectorR_;
 
     Fairchild670Meters meters_;
 };

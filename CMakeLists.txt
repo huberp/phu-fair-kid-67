@@ -12,6 +12,8 @@ option(PHU_BUILD_PLUGIN "Build the audio plugin (requires JUCE and platform audi
 
 enable_testing()
 
+set(PHU_AUDIO_LIB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/phu-audio-lib" CACHE PATH "Path to PhuAudioLib root")
+
 if(PHU_BUILD_PLUGIN)
     # JUCE
     # Build JUCE extras/examples OFF for faster builds
@@ -24,7 +26,6 @@ if(PHU_BUILD_PLUGIN)
     endif()
     add_subdirectory("${JUCE_ROOT}")
 
-    set(PHU_AUDIO_LIB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/phu-audio-lib" CACHE PATH "Path to PhuAudioLib root")
     if(NOT EXISTS "${PHU_AUDIO_LIB_ROOT}/CMakeLists.txt")
         message(FATAL_ERROR "PhuAudioLib submodule not found. Run: git submodule update --init --recursive")
     endif()
@@ -56,6 +57,17 @@ if(PHU_BUILD_PLUGIN)
     )
 
     add_subdirectory(src)
-    add_subdirectory(tests)
     add_subdirectory(tools)
+else()
+    # Without JUCE, include only the DSP-only analog library (no network/GL dependencies).
+    if(EXISTS "${PHU_AUDIO_LIB_ROOT}/analog/CMakeLists.txt")
+        add_subdirectory("${PHU_AUDIO_LIB_ROOT}/analog")
+    else()
+        message(WARNING "phu-audio-lib analog directory not found; tests will not be built.")
+    endif()
+endif()
+
+# Build DSP tests whenever PhuAnalogLib is available (no JUCE dependency).
+if(TARGET PhuAnalogLib)
+    add_subdirectory(tests)
 endif()

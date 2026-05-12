@@ -41,17 +41,19 @@ struct TransferPoint {
 
 /// Embedded reference from transfer_curve_reference.csv.
 /// Status: implementation-provisional — reflects measured behaviour of the
-/// current DSP core with threshold=0 V and P1.  NOT from hardware measurements.
+/// current DSP core (6386 remote-cutoff tube, push-pull stage, 6AL5 soft
+/// rectifier, input/interstage/output transformers, 12AU7 pre-amplifier)
+/// with threshold=0 V and P1.  NOT from hardware measurements.
 /// TODO: replace with digitised Fairchild 670 manual data when available.
 static const std::vector<TransferPoint> kTransferReference = {
-    { -60.0f, -63.0f,  0.0f },   // silence floor — well below any knee
-    { -40.0f, -43.1f,  0.1f },   // very low level — near unity gain
-    { -24.0f, -27.5f,  0.5f },   // low level — slight compression
-    { -18.0f, -21.0f,  1.0f },   // gentle compression begins
-    { -12.0f, -17.4f,  2.4f },   // moderate compression
-    {  -6.0f, -17.5f,  8.5f },   // noticeable gain reduction
-    {  -3.0f, -18.2f, 14.0f },   // significant limiting
-    {   0.0f, -18.8f, 15.5f },   // heavy limiting at full scale
+    { -60.0f, -63.05f,  0.04f },   // silence floor — well below any knee
+    { -40.0f, -43.05f,  0.04f },   // very low level — near unity gain
+    { -24.0f, -27.09f,  0.08f },   // low level — slight compression
+    { -18.0f, -21.48f,  0.47f },   // gentle compression begins
+    { -12.0f, -16.97f,  1.96f },   // moderate compression
+    {  -6.0f, -15.61f,  6.61f },   // noticeable gain reduction (6AL5 soft onset reduces CV)
+    {  -3.0f, -14.99f,  8.98f },   // significant limiting
+    {   0.0f, -14.22f, 11.21f },   // heavy limiting at full scale
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

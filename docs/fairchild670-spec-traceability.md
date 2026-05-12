@@ -67,22 +67,32 @@ The fast/slow time constants are estimates. See `src/DSP/Models/Sidechain/Timing
 
 ### Manual description
 
-The Fairchild 670 uses 6386 variable-mu pentodes (modelled here as 6072
-triodes) in a common-cathode topology.  The tube's transconductance decreases
-as the grid is driven more negative, providing programme-dependent gain
-reduction.
+The Fairchild 670 uses 6386 remote-cutoff variable-mu pentodes in a push-pull
+common-cathode topology.  The tube's transconductance decreases gradually and
+asymmetrically as the grid is driven more negative, providing programme-dependent
+gain reduction with a characteristically smooth, never-hard-clipping response.
 
 ### Implementation status
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
 | Variable-mu topology | **approximate** | MNA + Newton-Raphson triode solve per sample |
-| Tube model (6386 → 6072) | **approximate** | 6072 Koren triode parameters; not 6386 pentode |
-| B+ supply (250 V) | **approximate** | Default `Vcc = 250 V`; exact value from manual unclear |
+| Tube model (6386 remote-cutoff) | **approximate** | Koren model with `x=1.0` exponent (versus 1.4 for sharp-cutoff) gives gradual Ip ∝ E₁ law, approximating the remote-cutoff character |
+| Push-pull (differential) topology | **approximate** | `VariableMuPushPullStage`: two `VariableMuStage` arms driven at ±Vin; differential combination cancels even harmonics |
+| B+ supply (250 V) | **approximate** | Default `Vcc = 250 V` |
 | Plate resistor | **approximate** | Default `Rp = 100 kΩ` |
 | Cathode resistor | **approximate** | Default `Rk = 1.5 kΩ` |
 | Cathode bypass capacitor | **approximate** | Continuously variable 0–47 µF knob (modern extension) |
 | Gain normalisation | **modern extension** | Unity small-signal gain at CV=0, no hardware equivalent |
+
+### Remote-cutoff model notes
+
+The 6386 Koren fit uses `x = 1.0` (versus `x ≈ 1.4` for the earlier 6072
+sharp-cutoff approximation).  With `x = 1`, the plate current is proportional
+to E₁ (the effective grid voltage) rather than E₁^1.4, which stretches the
+knee of the gain-reduction curve and prevents it from ever reaching a
+hard cutoff.  This is a first-order approximation; a more accurate fit would
+require matching published 6386 plate curves.
 
 ---
 
@@ -91,39 +101,60 @@ reduction.
 ### Manual description
 
 The sidechain is a full-wave rectifier feeding an RC envelope follower.  The
-detected envelope (control voltage) is applied to the grid of the variable-mu
-stage to reduce gain.
+hardware uses a 6AL5 twin-diode rectifier.  The detected envelope (control
+voltage) is applied to the grid of the variable-mu stage to reduce gain.
 
 ### Implementation status
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
-| Full-wave rectifier | **exact** | `std::abs(UnitScaling::sampleToVolts(sample))` |
+| Full-wave rectifier with 6AL5 soft onset | **approximate** | `SoftRectifierDetector`: forward voltage Vf ≈ 0.8 V applied before the RC smoother |
 | Attack/release RC smoothing | **approximate** | One-pole IIR; physically equivalent to an RC network |
 | Dual-branch auto release (P5/P6) | **approximate** | See §1 above |
 | Detector-to-stage CV law | **unknown** | The exact voltage gain from detector output to grid bias is not published; `cvMaxV = 6 V` is an estimate |
 
 ---
 
-## 4. Output transformer
+## 4. Transformers
 
 ### Manual description
 
-The Fairchild 670 uses Fairchild-spec output transformers that introduce
-bandwidth limiting and saturation colouration.
+The Fairchild 670 uses input, interstage, and output transformers.  Each
+transformer introduces bandwidth limiting and saturation colouration.  The
+input transformer feeds both the audio path and the sidechain.  The interstage
+transformer couples the variable-mu stage to the output amplifier.
 
 ### Implementation status
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
-| HPF (transformer low-frequency rolloff) | **approximate** | First-order HPF; default ~30 Hz |
-| LPF (transformer high-frequency rolloff) | **approximate** | First-order LPF; default ~18 kHz |
-| Saturation | **approximate** | Soft-clip via `tanh` |
+| Input transformer (P3) | **approximate** | `TransformerLinear`; HPF=30 Hz, LPF=30 kHz, drive=1.2; feeds both sidechain and signal path |
+| Interstage transformer (P5) | **approximate** | `TransformerLinear`; HPF=25 Hz, LPF=22 kHz, drive=1.1; between push-pull stage and output |
+| Output transformer (P6) | **approximate** | `TransformerSecondOrder`; 2nd-order biquad HPF+LPF (Q=0.7071 Butterworth); tanh saturator |
+| HF resonance peak (output transformer) | **approximate** | Modelled via `lpfQ` parameter; default Q=0.7071 (flat) |
 | Exact transformer parameters | **unknown** | Fairchild's transformer specifications are not publicly available |
 
 ---
 
-## 5. Stereo link modes
+## 5. Pre-amplifier and output amplifier tube stages
+
+### Manual description
+
+The hardware stacks multiple tube stages per channel (input amp, variable-mu
+stage, output amp), each contributing harmonic coloration and a small amount
+of bandwidth limiting via coupling capacitors.
+
+### Implementation status
+
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Pre-amplifier stage (P7) | **approximate** | `VariableMuStage` with 12AU7 Koren params; CV=0 always (fixed gain, harmonic coloration only) |
+| Output amplifier | **not implemented** | No separate output-amp stage yet; output transformer follows directly |
+| Tube types (12AX7, 12AU7, etc.) | **approximate** | 12AU7 Koren parameters used for pre-amp; exact hardware tube complement not verified |
+
+---
+
+## 6. Stereo link modes
 
 ### Manual description
 
@@ -140,7 +171,7 @@ right channels in a Mid/Side configuration.
 
 ---
 
-## 6. Exposed plugin parameters
+## 7. Exposed plugin parameters
 
 | Parameter | Source | Status |
 |-----------|--------|--------|
@@ -154,21 +185,26 @@ right channels in a Mid/Side configuration.
 
 ---
 
-## 7. Input-vs-output transfer curves
+## 8. Input-vs-output transfer curves
 
 The Fairchild 670 manual contains transfer-curve graphs showing input level vs
 output level and gain reduction.  These curves are **not yet digitised** into
-the repo.  The current test reference data (`tests/transfer_curve_reference.csv`)
-contains qualitative approximations, not digitised hardware measurements.
+the repo.  The current test reference data in `TransferCurveTests.cpp`
+(updated for the enhanced model) contains qualitative approximations measured
+from the DSP core itself, not digitised hardware measurements.  The new model
+(6386 remote-cutoff tube + 6AL5 soft rectifier) produces less gain reduction
+at low-to-moderate drive levels compared to the previous 6072 approximation,
+which is expected: the remote-cutoff characteristic and the rectifier dead zone
+both work to keep the compressor "barely breathing" on gentle material.
 
-**Status: approximate / not fully implemented.**
+**Status: approximate / not fully calibrated against hardware.**
 
 Future work: digitise the manual's transfer curves and tighten the automated
 comparison tolerance in `tests/TransferCurveTests.cpp`.
 
 ---
 
-## 8. What is intentionally not authentic
+## 9. What is intentionally not authentic
 
 The following behaviours are plugin-only and have no hardware counterpart:
 
