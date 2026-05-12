@@ -183,8 +183,8 @@ TEST_CASE("TransformerSecondOrder: Q parameter changes resonance (higher Q = mor
     cfgLow.hpfCutoffHz  = cfgHigh.hpfCutoffHz  = 20.0;
     cfgLow.lpfCutoffHz  = cfgHigh.lpfCutoffHz  = lpfCutoffHz;
     cfgLow.drive        = cfgHigh.drive        = 1.0f;
-    cfgLow.lpfQ         = 0.5f;  // under-damped — less pronounced peak
-    cfgHigh.lpfQ        = 2.0f;  // over-damped  — pronounced resonance peak
+    cfgLow.lpfQ         = 0.5f;  // over-damped (Q < 0.7071) — no resonance peak
+    cfgHigh.lpfQ        = 2.0f;  // under-damped (Q > 0.7071) — pronounced resonance peak
 
     TransformerSecondOrder xfmrLow, xfmrHigh;
     xfmrLow.setConfig(cfgLow);   xfmrLow.prepare(sampleRate);
