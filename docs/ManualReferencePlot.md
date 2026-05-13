@@ -61,7 +61,7 @@ The legend lists five numbered configurations.  Each curve was measured at a **1
 2. AC THRESHOLD control slightly CW from CCW position, DC THRESHOLD control fully CW.
 3. Factory-adjusted condition.
 4. AC THRESHOLD control fully CW and DC THRESHOLD control slightly CCW from CW position.
-5. AC THRESHOLD control fully CW, DC THRESHOLD control slightly CW CCW position.
+5. AC THRESHOLD control fully CW, DC THRESHOLD control slightly CW from CCW position.
 
 ### What "AC THRESHOLD" and "DC THRESHOLD" mean in the hardware
 
@@ -217,7 +217,7 @@ dBm  = dBFS + 19.2
 |  +5           | −14.2                |
 | +10           |  −9.2                |
 | +15           |  −4.2                |
-| +20           |  −0.8 (≈ 0 dBFS)     |
+| +20           |  −0.8 (~0 dBFS)      |
 | +25           |  +5.8 (above 0 dBFS) |
 | +30           | +10.8 (above 0 dBFS) |
 
@@ -371,7 +371,7 @@ For a live comparison inside a DAW host:
 5. **Expected deviations:**
    - Curves ①–② will show a near-flat gain at low levels (plugin normalises gain; hardware adds +9 dB offset).
    - Curve ② will not exhibit the hardware DC-bias floor; it will look more like a softer version of ③.
-   - Curves ③ and ④ should align closely with the hardware reference (within ±4 dB) using the default DSP parameters when Input Trim is +10 dB.
+   - Curves ③ and ④ should align closely with the hardware reference (within ±4 dB) using the settings from §6 when Input Trim is +10 dB.
 
 ---
 
@@ -407,7 +407,7 @@ Add a separate reference array for the factory condition, alongside the existing
 ```cpp
 /// Hardware-digitised reference for Curve ③ (factory condition).
 /// Source: Fairchild 670 service manual, "Input vs. Output Curves", December 1959.
-/// Tolerance: ±4 dB (implementation is approximate; tube params not fully calibrated).
+/// Tolerance: ±4 dB (implementation is approximate; tube parameters not fully calibrated).
 static const std::vector<TransferPoint> kFactoryReference = {
     { -19.2f, -22.2f,  4.0f },   // 0 dBm hardware input
     { -14.2f, -21.2f,  7.0f },   // +5 dBm hardware input
@@ -458,6 +458,10 @@ TEST_CASE("TransferCurve: curve ③ factory condition — hardware reference (±
           "[transfer][hardware_reference]")
 {
     // Factory threshold ≈ 5 V (plugin default = Threshold param 5).
+    // The longer settleN (200000 samples ≈ 4.5 s at 44.1 kHz) is required because
+    // at moderate threshold the sidechain CV approaches its steady-state value slowly
+    // — the RC envelope follower needs many more time constants to fully settle than
+    // the zero-threshold case where the CV reaches its ceiling quickly.
     constexpr float kThresholdV   = 5.0f;
     constexpr float kToleranceDb  = 4.0f;
 
@@ -506,7 +510,7 @@ If `TransferCurveTests` fails after adding the hardware-digitised reference poin
 |-----------|----------|--------------------------|-----------------------|
 | `sidechainAmplifierGain` | `Fairchild670Core.h` | Scales how much CV the rectifier output applies to the grids | Increase (e.g. 1.5 → 2.0) |
 | `cvMaxV` | `Fairchild670Core.h` via `makeStageCfg6386()` | Sets the ceiling CV that can be applied to the grid | Increase (e.g. 8.0 → 10.0) |
-| `kg1` | `TubePresets6386.h` | Controls transconductance; lower = higher gm = more GR | Decrease (e.g. 700 → 500) |
+| `kg1` | `TubePresets6386.h` | Controls transconductance; lower = higher gm = more GR | Decrease (e.g. 700 → 500)  |
 | `Rp` | `VariableMuStage` default config | Plate load resistor; higher = more gain and more dynamic range | Increase slightly |
 | `tubeRectifierForwardVoltageV` | `Fairchild670Core.h` | Raises the sidechain dead zone (reduces compression at low levels) | Decrease toward 0 to remove dead zone |
 
