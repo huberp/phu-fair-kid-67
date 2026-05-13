@@ -12,10 +12,12 @@ all 5 reference CSV/PNG files to be committed to the repository.
 #>
 
 param(
-    [double]$SidechainGain = 1.5,
+    [double]$SidechainGain = 0.7,
     [double]$CvSoftKnee = 0.75,
-    [double]$CvMax = 8.0,
-    [string]$BuildDir = "build\vs2026-x64\tools\Release\"
+    [double]$CvMax = 9.0,
+    [string]$BuildDir = "build\vs2026-x64\tools\Release\",
+    [string]$ProtocolSummaryPath = "tmp\calibration_sweep\protocol_summary.json",
+    [switch]$SkipProtocolGate = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,6 +27,34 @@ Write-Host "  sidechainAmplifierGain = $SidechainGain"
 Write-Host "  sidechainCvSoftKneeV   = $CvSoftKnee"
 Write-Host "  cvMaxV                 = $CvMax"
 Write-Host ""
+
+if (-not $SkipProtocolGate) {
+    if (-not (Test-Path $ProtocolSummaryPath)) {
+        Write-Error "Protocol summary not found: $ProtocolSummaryPath. Run scripts\sweep_global_calibration.ps1 first or pass -SkipProtocolGate."
+        exit 1
+    }
+
+    Write-Host "Validating protocol gate from $ProtocolSummaryPath..." -ForegroundColor DarkGray
+    $protocol = Get-Content $ProtocolSummaryPath -Raw | ConvertFrom-Json
+    if ($null -eq $protocol.passingCandidates -or $protocol.passingCandidates.Count -eq 0) {
+        Write-Error "Protocol gate failed: no passing candidates available in summary."
+        exit 1
+    }
+
+    $match = $protocol.passingCandidates | Where-Object {
+        ([math]::Abs([double]$_.gain - $SidechainGain) -lt 0.0001) -and
+        ([math]::Abs([double]$_.knee - $CvSoftKnee) -lt 0.0001) -and
+        ([math]::Abs([double]$_.cvMax - $CvMax) -lt 0.0001)
+    } | Select-Object -First 1
+
+    if ($null -eq $match) {
+        Write-Error "Protocol gate failed: requested parameters are not in passingCandidates."
+        Write-Host "Tip: pick a passing tuple from $ProtocolSummaryPath or pass -SkipProtocolGate for manual override." -ForegroundColor Yellow
+        exit 1
+    }
+
+    Write-Host "  [OK] Protocol gate passed" -ForegroundColor Green
+}
 
 # Find the core header file
 $coreHeaderPath = "src\DSP\Models\Fairchild\Fairchild670Core.h"
