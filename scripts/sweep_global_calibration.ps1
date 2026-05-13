@@ -22,7 +22,8 @@ param(
     [double]$Checkpoint2Db = -6.0,
     [double]$MinSepAtCheckpoint1Db = 0.50,
     [double]$MinSepAtCheckpoint2Db = 0.50,
-    [double]$RegularizationWeight = 0.2
+    [double]$RegularizationWeight = 0.2,
+    [int]$CurveParallelism = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -86,11 +87,18 @@ if (-not (Test-Path $exe)) {
     Write-Error "Calibration tool not found: $exe"
     exit 1
 }
+$exePath = [string]$exe
+
+if ($CurveParallelism -lt 1) {
+    Write-Error "CurveParallelism must be >= 1"
+    exit 1
+}
 
 # Create output directory
 if (-not (Test-Path $OutputDir)) {
     New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 }
+$outputRoot = (Resolve-Path $OutputDir).Path
 
 # Storage for results
 $results = @()
@@ -106,6 +114,7 @@ Write-Host "  Checkpoints: [$Checkpoint1Db dBFS, $Checkpoint2Db dBFS]"
 Write-Host "  Min separation: [$minSepAtCheckpoint1Db dB, $minSepAtCheckpoint2Db dB]"
 Write-Host "  Monotonicity slack: $monoSlackDb dB"
 Write-Host "  Tail minimum slope: $tailMinSlopeDb dB"
+Write-Host "  Curve parallelism: $CurveParallelism"
 Write-Host "  Curves: $(($curves | ForEach-Object { $_.name }) -join ', ')"
 Write-Host "  Total runs: $totalRuns (approx $(($totalRuns * 5) / 60) minutes)"
 Write-Host ""
@@ -116,26 +125,78 @@ foreach ($gain in $gainValues) {
         foreach ($cvMax in $cvMaxValues) {
             
             $paramSetName = "gain_$([math]::Round($gain, 2))_knee_$([math]::Round($knee, 2))_cvMax_$([math]::Round($cvMax, 1))"
-            $paramSetDir = Join-Path $OutputDir $paramSetName
+            $paramSetDir = Join-Path $outputRoot $paramSetName
             if (-not (Test-Path $paramSetDir)) {
                 New-Item -ItemType Directory -Path $paramSetDir -Force | Out-Null
             }
-            
-            foreach ($curve in $curves) {
-                $runCount++
-                $pct = [math]::Round(100 * $runCount / $totalRuns, 1)
-                Write-Host "[$pct%] Testing: $($curve.name) with gain=$gain knee=$knee cvMax=$cvMax" -ForegroundColor DarkGray
-                
-                $csvOut = Join-Path $paramSetDir "$($curve.name).csv"
-                
-                # Run calibration
-                & $exe --measure-transfer --position 1 --threshold $curve.threshold `
-                    --sidechain-gain $gain `
-                    --cv-soft-knee $knee `
-                    --cv-max $cvMax `
-                    --output $csvOut 2>&1 | Out-Null
-                
-                if (-not (Test-Path $csvOut)) {
+
+            $curveRuns = @()
+            if ($CurveParallelism -gt 1) {
+                $jobs = @()
+                foreach ($curve in $curves) {
+                    $runCount++
+                    $pct = [math]::Round(100 * $runCount / $totalRuns, 1)
+                    Write-Host "[$pct%] Queue: $($curve.name) with gain=$gain knee=$knee cvMax=$cvMax" -ForegroundColor DarkGray
+
+                    $csvOut = Join-Path $paramSetDir "$($curve.name).csv"
+                    $jobs += Start-Job -ScriptBlock {
+                        param($exePath, $threshold, $gain, $knee, $cvMax, $csvOut, $curveName, $curveWeight)
+
+                        & $exePath --measure-transfer --position 1 --threshold $threshold `
+                            --sidechain-gain $gain `
+                            --cv-soft-knee $knee `
+                            --cv-max $cvMax `
+                            --output $csvOut *> $null
+
+                        [pscustomobject]@{
+                            curveName = $curveName
+                            curveWeight = $curveWeight
+                            csvPath = $csvOut
+                            success = (Test-Path $csvOut)
+                        }
+                    } -ArgumentList $exePath, $curve.threshold, $gain, $knee, $cvMax, $csvOut, $curve.name, $curve.weight
+
+                    while ($jobs.Count -ge $CurveParallelism) {
+                        $done = Wait-Job -Job $jobs -Any
+                        $curveRuns += Receive-Job -Job $done
+                        Remove-Job -Job $done
+                        $jobs = @($jobs | Where-Object { $_.Id -ne $done.Id })
+                    }
+                }
+
+                if ($jobs.Count -gt 0) {
+                    Wait-Job -Job $jobs | Out-Null
+                    foreach ($job in $jobs) {
+                        $curveRuns += Receive-Job -Job $job
+                        Remove-Job -Job $job
+                    }
+                }
+            } else {
+                foreach ($curve in $curves) {
+                    $runCount++
+                    $pct = [math]::Round(100 * $runCount / $totalRuns, 1)
+                    Write-Host "[$pct%] Testing: $($curve.name) with gain=$gain knee=$knee cvMax=$cvMax" -ForegroundColor DarkGray
+
+                    $csvOut = Join-Path $paramSetDir "$($curve.name).csv"
+
+                    & $exePath --measure-transfer --position 1 --threshold $curve.threshold `
+                        --sidechain-gain $gain `
+                        --cv-soft-knee $knee `
+                        --cv-max $cvMax `
+                        --output $csvOut 2>&1 | Out-Null
+
+                    $curveRuns += [pscustomobject]@{
+                        curveName = $curve.name
+                        curveWeight = $curve.weight
+                        csvPath = $csvOut
+                        success = (Test-Path $csvOut)
+                    }
+                }
+            }
+
+            foreach ($curveRun in $curveRuns) {
+                $csvOut = [string]$curveRun.csvPath
+                if (-not $curveRun.success) {
                     Write-Warning "Failed to generate: $csvOut"
                     continue
                 }
@@ -195,8 +256,8 @@ foreach ($gain in $gainValues) {
                     gain         = $gain
                     knee         = $knee
                     cvMax        = $cvMax
-                    curveName    = $curve.name
-                    curveWeight  = $curve.weight
+                    curveName    = [string]$curveRun.curveName
+                    curveWeight  = [double]$curveRun.curveWeight
                     score        = [math]::Round($score, 4)
                     monoViolations = $monoViolations
                     tailMinDelta = [math]::Round($tailMinDelta, 4)
