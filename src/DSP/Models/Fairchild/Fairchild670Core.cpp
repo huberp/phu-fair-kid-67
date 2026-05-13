@@ -5,6 +5,34 @@
 #include <algorithm>
 #include <cmath>
 
+namespace {
+constexpr float kCvClampEpsilon = 1.0e-5f;
+
+float softLimitCv(const float cv,
+                  const float cvMax,
+                  const float softKneeWidth) noexcept
+{
+    if (cvMax <= 0.0f)
+        return 0.0f;
+
+    const float knee = std::clamp(softKneeWidth, 0.0f, cvMax);
+    if (knee <= 0.0f)
+        return std::clamp(cv, 0.0f, cvMax);
+
+    const float clampedCv = std::max(0.0f, cv);
+    const float kneeStart = cvMax - knee;
+    if (clampedCv <= kneeStart)
+        return clampedCv;
+    if (clampedCv >= cvMax)
+        return cvMax;
+
+    // Cubic Hermite segment with unit slope at knee start and zero slope at cvMax.
+    const float t = (clampedCv - kneeStart) / knee;
+    const float p = t + t * t - t * t * t;
+    return kneeStart + knee * p;
+}
+}
+
 namespace Models {
 
 // ── Constructor ───────────────────────────────────────────────────────────────
@@ -172,8 +200,15 @@ void Fairchild670Core::processStereo(float inL, float inR,
     //    is not otherwise modelled.  In hardware the 6AL5 output connects to the
     //    6386 grids through only R107/R108 (30 Ω) and R111 (33 Ω stopper).
     //    The stage's own cvMaxV clamp limits the maximum applied bias.
-    stageL_.setCv(finalCvL * cfg_.sidechainAmplifierGain);
-    stageR_.setCv(finalCvR * cfg_.sidechainAmplifierGain);
+    const float appliedCvL = finalCvL * cfg_.sidechainAmplifierGain;
+    const float appliedCvR = finalCvR * cfg_.sidechainAmplifierGain;
+    const float cvMax = static_cast<float>(cfg_.stageCfg.cvMaxV);
+    const float shapedCvL = softLimitCv(appliedCvL, cvMax, cfg_.sidechainCvSoftKneeV);
+    const float shapedCvR = softLimitCv(appliedCvR, cvMax, cfg_.sidechainCvSoftKneeV);
+    stageL_.setCv(shapedCvL);
+    stageR_.setCv(shapedCvR);
+    const float stageCvL = stageL_.cv();
+    const float stageCvR = stageR_.cv();
 
     // 6. Audio signal chain:
     //   [P2] Push-pull stage → [P5] interstage transformer → [P6] output transformer.
@@ -187,6 +222,16 @@ void Fairchild670Core::processStereo(float inL, float inR,
     // 7. Update meter accumulators.
     meters_.cvL = finalCvL;
     meters_.cvR = finalCvR;
+    meters_.rawCvL = rawCvL;
+    meters_.rawCvR = rawCvR;
+    meters_.effectiveCvL = effectiveCvL;
+    meters_.effectiveCvR = effectiveCvR;
+    meters_.appliedCvL = appliedCvL;
+    meters_.appliedCvR = appliedCvR;
+    meters_.stageCvL = stageCvL;
+    meters_.stageCvR = stageCvR;
+    meters_.cvClampedL = (appliedCvL - stageCvL > kCvClampEpsilon) ? 1.0f : 0.0f;
+    meters_.cvClampedR = (appliedCvR - stageCvR > kCvClampEpsilon) ? 1.0f : 0.0f;
     meters_.inPeakL  = std::max(meters_.inPeakL,  std::abs(inL));
     meters_.inPeakR  = std::max(meters_.inPeakR,  std::abs(inR));
     meters_.outPeakL = std::max(meters_.outPeakL, std::abs(outL));

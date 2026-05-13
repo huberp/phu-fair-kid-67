@@ -47,13 +47,13 @@ struct TransferPoint {
 /// TODO: replace with digitised Fairchild 670 manual data when available.
 static const std::vector<TransferPoint> kTransferReference = {
     { -60.0f, -63.07f,  0.05f },   // silence floor — well below any knee
-    { -40.0f, -43.07f,  0.05f },   // very low level — near unity gain
-    { -24.0f, -27.11f,  0.09f },   // low level — slight compression
-    { -18.0f, -21.65f,  0.63f },   // gentle compression begins
-    { -12.0f, -17.84f,  2.82f },   // moderate compression
-    {  -6.0f, -20.49f, 11.47f },   // noticeable gain reduction (Vgk≤0 clamp active)
-    {  -3.0f, -25.33f, 19.31f },   // significant limiting
-    {   0.0f, -25.68f, 22.66f },   // heavy limiting at full scale (saturates at cvMaxV=8V)
+    { -39.0f, -39.07f,  0.05f },   // very low level — near unity gain
+    { -23.0f, -23.24f,  0.22f },   // low level — slight compression
+    { -18.0f, -18.79f,  0.77f },   // gentle compression begins
+    { -12.0f, -14.64f,  2.62f },   // moderate compression
+    {  -6.0f, -14.28f,  8.26f },   // noticeable gain reduction (Vgk≤0 clamp active)
+    {  -3.0f, -14.70f, 11.68f },   // significant limiting
+    {   0.0f, -14.70f, 11.68f },   // heavy limiting at full scale (gain=0.7, cvMaxV=9)
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

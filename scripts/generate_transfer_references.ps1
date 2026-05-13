@@ -27,7 +27,10 @@
 #>
 
 param(
-    [string]$BuildDir = "build\vs2026-x64\tools\Release\"
+    [string]$BuildDir = "build\vs2026-x64\tools\Release\",
+    [string]$SidechainGain = "0.7",
+    [string]$CvSoftKnee = "0.75",
+    [string]$CvMax = "9.0"
 )
 
 Set-StrictMode -Version Latest
@@ -66,7 +69,8 @@ foreach ($c in $curves) {
     Write-Host "`n[$($c.Label)] $($c.Desc)" -ForegroundColor Cyan
     Write-Host "  Measuring  -> $csvOut"
 
-    & $exe --measure-transfer --position 1 --threshold $c.ThreshV --output $csvOut
+    & $exe --measure-transfer --position 1 --threshold $c.ThreshV --output $csvOut `
+        --sidechain-gain $SidechainGain --cv-soft-knee $CvSoftKnee --cv-max $CvMax
     if ($LASTEXITCODE -ne 0) {
         Write-Error "phu_calibrate failed for threshold=$($c.ThreshV)"
     }
@@ -82,3 +86,4 @@ foreach ($c in $curves) {
 Write-Host "`nDone." -ForegroundColor Green
 Write-Host "Reference CSVs written to: $testDir"
 Write-Host "PNG plots written to:       $tmpDir"
+Write-Host "Calibration knobs: sidechain_gain=$SidechainGain cv_soft_knee=$CvSoftKnee cv_max=$CvMax"

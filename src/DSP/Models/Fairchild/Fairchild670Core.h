@@ -37,6 +37,16 @@ enum class LinkedEnvelopeStrategy {
 struct Fairchild670Meters {
     float cvL      = 0.0f; ///< Control voltage applied to the L stage (V).
     float cvR      = 0.0f; ///< Control voltage applied to the R stage (V).
+    float rawCvL   = 0.0f; ///< Raw detector CV before threshold subtraction, L (V).
+    float rawCvR   = 0.0f; ///< Raw detector CV before threshold subtraction, R (V).
+    float effectiveCvL = 0.0f; ///< Post-threshold CV before link strategy, L (V).
+    float effectiveCvR = 0.0f; ///< Post-threshold CV before link strategy, R (V).
+    float appliedCvL = 0.0f; ///< CV after sidechain amplifier gain, before stage clamp, L (V).
+    float appliedCvR = 0.0f; ///< CV after sidechain amplifier gain, before stage clamp, R (V).
+    float stageCvL = 0.0f; ///< CV seen by the variable-mu stage after clamp, L (V).
+    float stageCvR = 0.0f; ///< CV seen by the variable-mu stage after clamp, R (V).
+    float cvClampedL = 0.0f; ///< 1.0 when L applied CV exceeded stage clamp, else 0.0.
+    float cvClampedR = 0.0f; ///< 1.0 when R applied CV exceeded stage clamp, else 0.0.
     float inPeakL  = 0.0f; ///< Input peak level, L channel (linear, ±1 full-scale).
     float inPeakR  = 0.0f; ///< Input peak level, R channel (linear, ±1 full-scale).
     float outPeakL = 0.0f; ///< Output peak level, L channel (linear, ±1 full-scale).
@@ -101,9 +111,17 @@ struct Fairchild670CoreConfig {
     ///
     /// This scalar therefore represents the net level difference introduced by
     /// the sidechain amplifier chain that is not otherwise modelled in software.
-    /// At 1.5 the applied CV reaches the 8 V ceiling (cvMaxV) at 0 dBFS input,
-    /// producing ≥ 20 dB gain reduction as specified by the hardware.
-    float sidechainAmplifierGain = 1.5f;
+    /// Default is calibrated against the current transfer-curve references.
+    float sidechainAmplifierGain = 0.7f;
+
+    /// Soft-knee width (V) applied to the sidechain CV before the stage clamp.
+    ///
+    /// A real sidechain amplifier path approaches limiting gradually. This
+    /// smooths the final approach to cvMaxV and avoids a hard digital-style
+    /// corner when the detector drive exceeds the stage ceiling.
+    ///
+    /// 0.0 V disables soft-knee behaviour (hard ceiling).
+    float sidechainCvSoftKneeV = 0.75f;
 
     /// [P5] Interstage transformer coloration (between variable-mu and output stages).
     /// Default: HPF=25 Hz, LPF=22 kHz, drive=1.1 — slightly tighter than the output
@@ -130,11 +148,11 @@ struct Fairchild670CoreConfig {
     {
         Analog::Models::VariableMuStageConfig cfg;
         cfg.tube   = DSP::tubeParams6386();
-        // [P4] Raise the CV ceiling from the library default of 6.0 V to 8.0 V so
-        // that the full detector output range (up to ~8.2 V at 0 dBFS) can be
+        // [P4] Raise the CV ceiling from the library default of 6.0 V to 9.0 V so
+        // that the full detector output range can be
         // applied to the tube.  Without this, the sidechain CV is clipped to 6 V
         // before the Koren model ever sees it, limiting max GR.
-        cfg.cvMaxV = 8.0;
+        cfg.cvMaxV = 9.0;
         return cfg;
     }
 

@@ -123,11 +123,16 @@ static void measureTiming(std::ostream& out,
 
 /// Measure steady-state input-vs-output transfer at a range of dBFS levels.
 /// Outputs CSV with columns:
-///   input_dbfs, output_dbfs, gain_reduction_db, cv_volts
+///   input_dbfs, output_dbfs, gain_reduction_db, cv_volts,
+///   raw_cv_volts, effective_cv_volts, applied_cv_volts, stage_cv_volts,
+///   cv_clamp_ratio
 static void measureTransfer(std::ostream& out,
                              int           positionIdx,
                              double        sampleRate,
-                             float         threshVoltage = 0.0f)
+                             float         threshVoltage = 0.0f,
+                             float         sidechainGain = 0.7f,
+                             float         cvSoftKneeV   = 0.75f,
+                             float         cvMaxV        = 9.0f)
 {
     using namespace Models;
     using namespace Models::Sidechain;
@@ -139,8 +144,13 @@ static void measureTransfer(std::ostream& out,
     out << "# position=" << (positionIdx + 1)
         << " kind=" << (preset.kind == TimingKind::Fixed ? "Fixed" : "AutoRelease")
         << " threshold_v=" << threshVoltage
+        << " sidechain_gain=" << sidechainGain
+        << " cv_soft_knee_v=" << cvSoftKneeV
+        << " cv_max_v=" << cvMaxV
         << " sample_rate=" << sampleRate << "\n";
-    out << "input_dbfs,output_dbfs,gain_reduction_db,cv_volts\n";
+        out << "input_dbfs,output_dbfs,gain_reduction_db,cv_volts,"
+            "raw_cv_volts,effective_cv_volts,applied_cv_volts,stage_cv_volts,"
+            "cv_clamp_ratio\n";
 
     // Input levels from -60 dBFS to 0 dBFS.
     const std::vector<float> levels = {
@@ -153,8 +163,11 @@ static void measureTransfer(std::ostream& out,
         const float amplitude = (dbfs <= -144.0f) ? 0.0f : dbfsToAmplitude(dbfs);
 
         Fairchild670CoreConfig cfg;
-        cfg.linkMode           = LinkMode::Independent;
+        cfg.linkMode = LinkMode::Independent;
         cfg.timingPreset = pos;
+        cfg.sidechainAmplifierGain = sidechainGain;
+        cfg.sidechainCvSoftKneeV = cvSoftKneeV;
+        cfg.stageCfg.cvMaxV = cvMaxV;
 
         Fairchild670Core core(cfg);
         core.prepare(sampleRate);
@@ -178,7 +191,12 @@ static void measureTransfer(std::ostream& out,
         constexpr int kMeasureN = 1024;
         double sumInSq  = 0.0;
         double sumOutSq = 0.0;
-        float  lastCv   = 0.0f;
+        double sumFinalCv     = 0.0;
+        double sumRawCv       = 0.0;
+        double sumEffectiveCv = 0.0;
+        double sumAppliedCv   = 0.0;
+        double sumStageCv     = 0.0;
+        double sumClamp       = 0.0;
 
         for (int i = 0; i < kMeasureN; ++i) {
             const float in = amplitude * std::sin(
@@ -188,7 +206,13 @@ static void measureTransfer(std::ostream& out,
             core.processStereo(in, in, outL, outR);
             sumInSq  += static_cast<double>(in)   * static_cast<double>(in);
             sumOutSq += static_cast<double>(outL)  * static_cast<double>(outL);
-            lastCv    = core.meters().cvL;
+            const auto meters = core.meters();
+            sumFinalCv     += static_cast<double>(meters.cvL);
+            sumRawCv       += static_cast<double>(meters.rawCvL);
+            sumEffectiveCv += static_cast<double>(meters.effectiveCvL);
+            sumAppliedCv   += static_cast<double>(meters.appliedCvL);
+            sumStageCv     += static_cast<double>(meters.stageCvL);
+            sumClamp       += static_cast<double>(meters.cvClampedL);
         }
 
         const float rmsIn  = static_cast<float>(std::sqrt(sumInSq  / kMeasureN));
@@ -197,8 +221,22 @@ static void measureTransfer(std::ostream& out,
         const float inDbfs  = amplitudeToDbfs(rmsIn);
         const float outDbfs = amplitudeToDbfs(rmsOut);
         const float grDb    = inDbfs - outDbfs;
+        const float avgFinalCv = static_cast<float>(sumFinalCv / kMeasureN);
+        const float avgRawCv = static_cast<float>(sumRawCv / kMeasureN);
+        const float avgEffectiveCv = static_cast<float>(sumEffectiveCv / kMeasureN);
+        const float avgAppliedCv = static_cast<float>(sumAppliedCv / kMeasureN);
+        const float avgStageCv = static_cast<float>(sumStageCv / kMeasureN);
+        const float clampRatio = static_cast<float>(sumClamp / kMeasureN);
 
-        out << inDbfs << "," << outDbfs << "," << grDb << "," << lastCv << "\n";
+        out << inDbfs << ","
+            << outDbfs << ","
+            << grDb << ","
+            << avgFinalCv << ","
+            << avgRawCv << ","
+            << avgEffectiveCv << ","
+            << avgAppliedCv << ","
+            << avgStageCv << ","
+            << clampRatio << "\n";
     }
 }
 
@@ -220,6 +258,9 @@ static void printHelp(const char* progName)
         << "  --position <1-6>     Timing switch position (default: 1).\n"
         << "  --sample-rate <Hz>   Sample rate in Hz (default: 44100).\n"
         << "  --threshold <V>      Threshold voltage for transfer measurement (default: 0).\n"
+        << "  --sidechain-gain <x> Sidechain CV gain scalar (default: 0.7).\n"
+        << "  --cv-soft-knee <V>   Soft-knee width before CV ceiling clamp (default: 0.75).\n"
+        << "  --cv-max <V>         Maximum stage CV ceiling (default: 9.0).\n"
         << "  --output <file>      Write output to file instead of stdout.\n"
         << "  --help               Show this help and exit.\n"
         << "\n"
@@ -232,11 +273,14 @@ static void printHelp(const char* progName)
 
 int main(int argc, char* argv[])
 {
-    bool        doTiming     = false;
-    bool        doTransfer   = false;
-    int         position     = 1;       // 1-based
-    double      sampleRate   = 44100.0;
-    float       thresholdV   = 0.0f;
+    bool        doTiming      = false;
+    bool        doTransfer    = false;
+    int         position      = 1;       // 1-based
+    double      sampleRate    = 44100.0;
+    float       thresholdV    = 0.0f;
+    float       sidechainGain = 0.7f;
+    float       cvSoftKneeV   = 0.75f;
+    float       cvMaxV        = 9.0f;
     std::string outputFile;
 
     for (int i = 1; i < argc; ++i) {
@@ -255,6 +299,12 @@ int main(int argc, char* argv[])
             sampleRate = std::stod(argv[++i]);
         } else if (arg == "--threshold" && i + 1 < argc) {
             thresholdV = std::stof(argv[++i]);
+        } else if (arg == "--sidechain-gain" && i + 1 < argc) {
+            sidechainGain = std::stof(argv[++i]);
+        } else if (arg == "--cv-soft-knee" && i + 1 < argc) {
+            cvSoftKneeV = std::stof(argv[++i]);
+        } else if (arg == "--cv-max" && i + 1 < argc) {
+            cvMaxV = std::stof(argv[++i]);
         } else if (arg == "--output" && i + 1 < argc) {
             outputFile = argv[++i];
         } else {
@@ -281,6 +331,21 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    if (sidechainGain < 0.0f) {
+        std::cerr << "Error: --sidechain-gain must be non-negative.\n";
+        return 1;
+    }
+
+    if (cvSoftKneeV < 0.0f) {
+        std::cerr << "Error: --cv-soft-knee must be non-negative.\n";
+        return 1;
+    }
+
+    if (cvMaxV <= 0.0f) {
+        std::cerr << "Error: --cv-max must be positive.\n";
+        return 1;
+    }
+
     // Open output stream.
     std::ofstream fileStream;
     if (!outputFile.empty()) {
@@ -301,7 +366,13 @@ int main(int argc, char* argv[])
     }
 
     if (doTransfer) {
-        measureTransfer(out, posIdx, sampleRate, thresholdV);
+        measureTransfer(out,
+                        posIdx,
+                        sampleRate,
+                        thresholdV,
+                        sidechainGain,
+                        cvSoftKneeV,
+                        cvMaxV);
     }
 
     return 0;
