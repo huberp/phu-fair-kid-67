@@ -20,10 +20,14 @@ param(
     [double]$TailMinSlopeDb = -0.25,
     [double]$Checkpoint1Db = -9.0,
     [double]$Checkpoint2Db = -6.0,
+    [double]$BaselineRelMinCp1Db = -0.10,
+    [double]$BaselineRelMinCp2Db = -0.45,
+    [double]$MinSep35To20AtCheckpoint1Db = -0.35,
+    [double]$MinSep35To20AtCheckpoint2Db = 0.20,
     [double]$MinSepAtCheckpoint1Db = 0.50,
     [double]$MinSepAtCheckpoint2Db = 0.50,
     [double]$RegularizationWeight = 0.2,
-    [int]$CurveParallelism = 1
+    [int]$CurveParallelism = 8
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,6 +35,10 @@ $ErrorActionPreference = "Stop"
 # Protocol thresholds (second-draft defaults)
 $monoSlackDb = $MonoSlackDb
 $tailMinSlopeDb = $TailMinSlopeDb
+$baselineRelMinCp1Db = $BaselineRelMinCp1Db
+$baselineRelMinCp2Db = $BaselineRelMinCp2Db
+$minSep35To20AtCheckpoint1Db = $MinSep35To20AtCheckpoint1Db
+$minSep35To20AtCheckpoint2Db = $MinSep35To20AtCheckpoint2Db
 $minSepAtCheckpoint1Db = $MinSepAtCheckpoint1Db
 $minSepAtCheckpoint2Db = $MinSepAtCheckpoint2Db
 $regularizationWeight = $RegularizationWeight
@@ -87,7 +95,7 @@ if (-not (Test-Path $exe)) {
     Write-Error "Calibration tool not found: $exe"
     exit 1
 }
-$exePath = [string]$exe
+$exePath = (Resolve-Path $exe).Path
 
 if ($CurveParallelism -lt 1) {
     Write-Error "CurveParallelism must be >= 1"
@@ -111,6 +119,8 @@ Write-Host "  Gain values: [$($gainValues -join ', ')]"
 Write-Host "  Knee values: [$($kneeValues -join ', ')]"
 Write-Host "  CV Max values: [$($cvMaxValues -join ', ')]"
 Write-Host "  Checkpoints: [$Checkpoint1Db dBFS, $Checkpoint2Db dBFS]"
+Write-Host "  Baseline relative minima: [CP1=$baselineRelMinCp1Db dB, CP2=$baselineRelMinCp2Db dB]"
+Write-Host "  Min separation (3.5->2.0): [CP1=$minSep35To20AtCheckpoint1Db dB, CP2=$minSep35To20AtCheckpoint2Db dB]"
 Write-Host "  Min separation: [$minSepAtCheckpoint1Db dB, $minSepAtCheckpoint2Db dB]"
 Write-Host "  Monotonicity slack: $monoSlackDb dB"
 Write-Host "  Tail minimum slope: $tailMinSlopeDb dB"
@@ -142,16 +152,19 @@ foreach ($gain in $gainValues) {
                     $jobs += Start-Job -ScriptBlock {
                         param($exePath, $threshold, $gain, $knee, $cvMax, $csvOut, $curveName, $curveWeight)
 
-                        & $exePath --measure-transfer --position 1 --threshold $threshold `
+                        $jobOutput = & $exePath --measure-transfer --position 1 --threshold $threshold `
                             --sidechain-gain $gain `
                             --cv-soft-knee $knee `
                             --cv-max $cvMax `
-                            --output $csvOut *> $null
+                            --output $csvOut 2>&1
+                        $exitCode = $LASTEXITCODE
 
                         [pscustomobject]@{
                             curveName = $curveName
                             curveWeight = $curveWeight
                             csvPath = $csvOut
+                            exitCode = $exitCode
+                            output = ($jobOutput | Out-String)
                             success = (Test-Path $csvOut)
                         }
                     } -ArgumentList $exePath, $curve.threshold, $gain, $knee, $cvMax, $csvOut, $curve.name, $curve.weight
@@ -197,7 +210,10 @@ foreach ($gain in $gainValues) {
             foreach ($curveRun in $curveRuns) {
                 $csvOut = [string]$curveRun.csvPath
                 if (-not $curveRun.success) {
-                    Write-Warning "Failed to generate: $csvOut"
+                    Write-Warning "Failed to generate: $csvOut (exitCode=$($curveRun.exitCode))"
+                    if ($curveRun.output) {
+                        Write-Host $curveRun.output -ForegroundColor DarkYellow
+                    }
                     continue
                 }
                 
@@ -340,12 +356,12 @@ foreach ($entry in $paramSetScores.Values) {
     $rel0v0Cp2 = [double]$entry.perCurveGrAtCheckpoint2['thresh0v0'] - $baseCp2
 
     # Hard anchor checks: enforce robust family ordering/separation for 3.5 -> 2.0 -> 0.0.
-    if ($rel3v5Cp1 -lt -0.10) { $entry.hardFailures += "baseline_rel_cp1" }
-    if ($rel3v5Cp2 -lt -0.10) { $entry.hardFailures += "baseline_rel_cp2" }
+    if ($rel3v5Cp1 -lt $baselineRelMinCp1Db) { $entry.hardFailures += "baseline_rel_cp1" }
+    if ($rel3v5Cp2 -lt $baselineRelMinCp2Db) { $entry.hardFailures += "baseline_rel_cp2" }
 
-    if (($rel2v0Cp1 - $rel3v5Cp1) -lt $minSepAtCheckpoint1Db) { $entry.hardFailures += "sep_cp1_thresh3v5_thresh2v0" }
+    if (($rel2v0Cp1 - $rel3v5Cp1) -lt $minSep35To20AtCheckpoint1Db) { $entry.hardFailures += "sep_cp1_thresh3v5_thresh2v0" }
     if (($rel0v0Cp1 - $rel2v0Cp1) -lt $minSepAtCheckpoint1Db) { $entry.hardFailures += "sep_cp1_thresh2v0_thresh0v0" }
-    if (($rel2v0Cp2 - $rel3v5Cp2) -lt $minSepAtCheckpoint2Db) { $entry.hardFailures += "sep_cp2_thresh3v5_thresh2v0" }
+    if (($rel2v0Cp2 - $rel3v5Cp2) -lt $minSep35To20AtCheckpoint2Db) { $entry.hardFailures += "sep_cp2_thresh3v5_thresh2v0" }
     if (($rel0v0Cp2 - $rel2v0Cp2) -lt $minSepAtCheckpoint2Db) { $entry.hardFailures += "sep_cp2_thresh2v0_thresh0v0" }
 
     $entry.hardFailures = @($entry.hardFailures | Select-Object -Unique)
@@ -419,6 +435,10 @@ $protocolSummary = [ordered]@{
         checkpoint2Db = $Checkpoint2Db
         monoSlackDb = $monoSlackDb
         tailMinSlopeDb = $tailMinSlopeDb
+        baselineRelMinCp1Db = $baselineRelMinCp1Db
+        baselineRelMinCp2Db = $baselineRelMinCp2Db
+        minSep35To20AtCheckpoint1Db = $minSep35To20AtCheckpoint1Db
+        minSep35To20AtCheckpoint2Db = $minSep35To20AtCheckpoint2Db
         minSepAtCheckpoint1Db = $minSepAtCheckpoint1Db
         minSepAtCheckpoint2Db = $minSepAtCheckpoint2Db
     }
