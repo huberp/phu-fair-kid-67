@@ -217,20 +217,33 @@ public:
         cfg_.envelopeStrategy = strategy;
     }
 
-    /// Set the compression threshold as a voltage (V) subtracted from the raw
-    /// detector CV before it is applied to the left gain stage.
+    /// Set AC threshold for the left channel as a voltage (V) subtracted from
+    /// the raw detector CV before link logic.
     ///
-    /// effectiveCvL = max(0, detectorCvL − thresholdVoltage)
+    /// effectiveCvL = max(0, detectorCvL − acThresholdVoltageL) + dcBiasVoltageL
     ///
-    /// A value of 10 V places the threshold above any possible full-scale signal
-    /// (no compression); 0 V means the stage always compresses.
-    void setThresholdLeft(float thresholdVoltage) noexcept { thresholdVoltageL_ = thresholdVoltage; }
+    /// 10 V places the AC threshold above any possible full-scale signal
+    /// (no programme-dependent compression contribution); 0 V means maximum
+    /// AC sensitivity.
+    void setAcThresholdLeft(float thresholdVoltage) noexcept { acThresholdVoltageL_ = thresholdVoltage; }
 
-    /// Set the compression threshold as a voltage (V) subtracted from the raw
-    /// detector CV before it is applied to the right gain stage.
-    ///
-    /// effectiveCvR = max(0, detectorCvR − thresholdVoltage)
-    void setThresholdRight(float thresholdVoltage) noexcept { thresholdVoltageR_ = thresholdVoltage; }
+    /// Set AC threshold for the right channel.
+    void setAcThresholdRight(float thresholdVoltage) noexcept { acThresholdVoltageR_ = thresholdVoltage; }
+
+    /// Set DC bias contribution for the left channel (V).
+    /// This models a fixed sidechain offset independent of detector input.
+    void setDcBiasLeft(float dcBiasVoltage) noexcept { dcBiasVoltageL_ = std::max(0.0f, dcBiasVoltage); }
+
+    /// Set DC bias contribution for the right channel (V).
+    void setDcBiasRight(float dcBiasVoltage) noexcept { dcBiasVoltageR_ = std::max(0.0f, dcBiasVoltage); }
+
+    /// Legacy compatibility wrapper. Maps old single-threshold control to the
+    /// AC threshold path and leaves DC bias unchanged.
+    void setThresholdLeft(float thresholdVoltage) noexcept { setAcThresholdLeft(thresholdVoltage); }
+
+    /// Legacy compatibility wrapper. Maps old single-threshold control to the
+    /// AC threshold path and leaves DC bias unchanged.
+    void setThresholdRight(float thresholdVoltage) noexcept { setAcThresholdRight(thresholdVoltage); }
 
     /// Adjust the NR iteration budget on the variable-mu and pre-amplifier stages.
     ///
@@ -269,8 +282,10 @@ public:
 private:
     Fairchild670CoreConfig cfg_;
     double sampleRate_        = 44100.0;
-    float  thresholdVoltageL_ = 10.0f; ///< Left-channel threshold (V); 10 V = no compression.
-    float  thresholdVoltageR_ = 10.0f; ///< Right-channel threshold (V); 10 V = no compression.
+    float  acThresholdVoltageL_ = 10.0f; ///< Left AC threshold (V); 10 V = no AC-triggered compression.
+    float  acThresholdVoltageR_ = 10.0f; ///< Right AC threshold (V); 10 V = no AC-triggered compression.
+    float  dcBiasVoltageL_ = 0.0f;       ///< Left fixed DC sidechain contribution (V).
+    float  dcBiasVoltageR_ = 0.0f;       ///< Right fixed DC sidechain contribution (V).
 
     // [P7] Pre-amplifier tube stages (12AU7, CV=0 always).
     Analog::Models::VariableMuStage   preampL_;

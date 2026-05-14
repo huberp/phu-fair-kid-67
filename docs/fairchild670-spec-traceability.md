@@ -112,6 +112,7 @@ voltage) is applied to the grid of the variable-mu stage to reduce gain.
 | Attack/release RC smoothing | **approximate** | One-pole IIR; physically equivalent to an RC network |
 | Dual-branch auto release (P5/P6) | **approximate** | See §1 above |
 | Detector-to-stage CV law | **unknown** | The exact voltage gain from detector output to grid bias is not published; `cvMaxV = 6 V` is an estimate |
+| AC/DC sidechain calibration controls | **approximate** | Model exposes AC threshold and DC bias controls as software calibration parameters; exact hardware trim law is not fully published |
 
 ---
 
@@ -175,7 +176,8 @@ right channels in a Mid/Side configuration.
 
 | Parameter | Source | Status |
 |-----------|--------|--------|
-| Threshold (L/R) | Plugin abstraction | **modern extension** — the original hardware has no threshold control; gain reduction starts immediately with any signal level |
+| Threshold (L/R) | Operational plugin control | **modern extension** — user-facing operational threshold control in software |
+| AC Threshold / DC Bias | Sidechain calibration controls | **approximate** — software representation of internal hardware sidechain calibration trims |
 | Time constant position (1–6) | Manual switch | **approximate** |
 | Stereo mode (Independent / Linked / M-S) | Manual L/V switch + extensions | **modern extension** (Linked modes); **approximate** (M/S) |
 | Cathode bypass Ck | Hardware pot (not original) | **modern extension** |
@@ -208,9 +210,9 @@ comparison tolerance in `tests/TransferCurveTests.cpp`.
 
 The following behaviours are plugin-only and have no hardware counterpart:
 
-- **Threshold control**: the original 670 compresses any signal above the
-  inherent bias point of the tube.  The threshold abstraction is kept for
-  flexibility but is documented here as a modern extension.
+- **Operational threshold control**: user-facing threshold controls in software
+  are an operational abstraction and do not represent a one-to-one replica of
+  hardware panel behavior.
 - **Oversampling**: the original hardware is entirely analogue.
 - **Dry/Wet (Mix) knob**: analogue hardware does not have a mix control.
 - **Draft/High quality modes**: affect only the NR iteration count, a

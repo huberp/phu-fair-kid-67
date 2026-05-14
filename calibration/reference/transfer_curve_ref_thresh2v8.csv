@@ -1,0 +1,11 @@
+# Manual-derived reference: Curve 5 (heavy AC, low DC bias)
+# Mapping: thresh2v8 -> curve5
+input_dbm,output_dbm,input_dbfs,output_dbfs,gain_reduction_db,note
+-5.0,3.0,-24.2,-25.2,1.0,manual_curve5
+0.0,7.0,-19.2,-21.2,2.0,manual_curve5
+5.0,9.0,-14.2,-19.2,5.0,manual_curve5
+10.0,10.0,-9.2,-18.2,9.0,manual_curve5
+15.0,10.5,-4.2,-17.7,13.5,manual_curve5
+20.0,10.0,0.8,-18.2,19.0,manual_curve5
+25.0,9.5,5.8,-18.7,24.5,manual_curve5
+30.0,9.0,10.8,-19.2,30.0,manual_curve5

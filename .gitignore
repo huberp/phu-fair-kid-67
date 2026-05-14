@@ -22,6 +22,8 @@ Thumbs.db
 dist/
 *.zip
 tmp/
+calibration/outputs/
+calibration/plots/
 
 #Python Environment
 .venv/

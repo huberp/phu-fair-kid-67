@@ -6,7 +6,7 @@ This document defines the strict gating protocol for transfer-curve calibration 
 
 Applies to all calibration work that changes transfer-curve outputs, including updates to:
 - sidechain CV law parameters
-- threshold mapping behavior
+- AC/DC threshold mapping behavior
 - stage CV ceiling and soft-knee behavior
 - generated transfer reference CSV/PNG outputs
 
@@ -22,6 +22,9 @@ The protocol always evaluates these five generated curves:
 - thresh2v8
 - thresh2v0
 - thresh0v0
+
+Each curve is defined by an AC/DC sidechain tuple in calibration sweep scripts
+(ac threshold voltage + dc bias voltage), not by a single threshold value.
 
 ## Hard Constraints (must pass)
 
@@ -54,7 +57,7 @@ The best passing candidate is the one with the lowest protocol score.
 
 ## Current Default Thresholds (second draft)
 
-These are implemented in scripts/sweep_global_calibration.ps1:
+These are implemented in calibration/scripts/sweep_global_calibration.ps1:
 - monotonicity slack: 0.10 dB
 - minimum tail slope: -0.25 dB
 - checkpoint 1: -9 dBFS, minimum adjacent separation: 0.50 dB
@@ -65,27 +68,27 @@ These thresholds are command-line tunable in the sweep script.
 ## Required Workflow
 
 1. Run constrained sweep
-- scripts/sweep_global_calibration.ps1
+- calibration/scripts/sweep_global_calibration.ps1
 
 Example (quick constrained exploration):
-- scripts/sweep_global_calibration.ps1 -Quick
+- calibration/scripts/sweep_global_calibration.ps1 -Quick
 
 Example (custom thresholds):
-- scripts/sweep_global_calibration.ps1 -Checkpoint1Db -9 -Checkpoint2Db -6 -MinSepAtCheckpoint1Db 0.6 -MinSepAtCheckpoint2Db 0.5
+- calibration/scripts/sweep_global_calibration.ps1 -Checkpoint1Db -9 -Checkpoint2Db -6 -MinSepAtCheckpoint1Db 0.6 -MinSepAtCheckpoint2Db 0.5
 
 2. Review protocol artifacts
-- tmp/calibration_sweep/sweep_results.json
-- tmp/calibration_sweep/protocol_summary.json
-- tmp/calibration_sweep/protocol_report.json
-- tmp/calibration_sweep/sensitivity_matrix.json
-- tmp/calibration_sweep/protocol_report.md
+- calibration/outputs/calibration_sweep/sweep_results.json
+- calibration/outputs/calibration_sweep/protocol_summary.json
+- calibration/outputs/calibration_sweep/protocol_report.json
+- calibration/outputs/calibration_sweep/sensitivity_matrix.json
+- calibration/outputs/calibration_sweep/protocol_report.md
 
 3. Lock only passing parameters
-- scripts/lock_and_regenerate.ps1 -SidechainGain <g> -CvSoftKnee <k> -CvMax <m>
+- calibration/scripts/lock_and_regenerate.ps1 -SidechainGain <g> -CvSoftKnee <k> -CvMax <m>
 - The lock script validates selected parameters against passingCandidates.
 
 4. Regenerate references and run tests
-- scripts/generate_transfer_references.ps1
+- calibration/scripts/generate_transfer_references.ps1
 - transfer tests must pass before commit.
 
 ## Lock Gate Enforcement

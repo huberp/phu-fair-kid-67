@@ -14,7 +14,7 @@ family separation) and ranks only passing candidates.
 
 param(
     [string]$BuildDir = "build\vs2026-x64\tools\Release\",
-    [string]$OutputDir = "tmp\calibration_sweep",
+    [string]$OutputDir = "calibration\outputs\calibration_sweep",
     [switch]$Quick = $false,  # Quick mode: fewer parameter combinations
     [double]$MonoSlackDb = 0.10,
     [double]$TailMinSlopeDb = -0.25,
@@ -36,6 +36,16 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Script lives under calibration/scripts after refactor.
+$projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+
+if (-not [System.IO.Path]::IsPathRooted($BuildDir)) {
+    $BuildDir = Join-Path $projectRoot $BuildDir
+}
+if (-not [System.IO.Path]::IsPathRooted($OutputDir)) {
+    $OutputDir = Join-Path $projectRoot $OutputDir
+}
 
 # Protocol thresholds (second-draft defaults)
 $monoSlackDb = $MonoSlackDb
@@ -91,7 +101,8 @@ function Complete-PendingJob {
     param(
         [Parameter(Mandatory = $true)]
         [System.Collections.Generic.List[pscustomobject]]$Pending,
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ValueFromPipeline = $false)]
+        [AllowEmptyCollection()]
         [System.Collections.Generic.List[pscustomobject]]$AllRuns
     )
     $doneJob = Wait-Job -Job ($Pending | ForEach-Object { $_.job }) -Any
@@ -131,13 +142,13 @@ if ($Quick) {
     $cvMaxValues = @(8.0, 9.0, 10.0)
 }
 
-# Threshold curves: (name, threshold_v)
+# Threshold curves: (name, ac_threshold_v, dc_bias_v)
 $curves = @(
-    @{ name = "thresh10v0"; threshold = 10.0; weight = 1.0 }
-    @{ name = "thresh3v5";  threshold = 3.5;  weight = 1.0 }
-    @{ name = "thresh2v8";  threshold = 2.8;  weight = 1.0 }
-    @{ name = "thresh2v0";  threshold = 2.0;  weight = 1.5 }  # Primary target
-    @{ name = "thresh0v0";  threshold = 0.0;  weight = 2.0 }  # Most critical
+    @{ name = "thresh10v0"; thresholdAc = 10.0; thresholdDc = 0.0; weight = 1.0 }
+    @{ name = "thresh3v5";  thresholdAc = 8.0;  thresholdDc = 1.5; weight = 1.0 }
+    @{ name = "thresh2v8";  thresholdAc = 3.0;  thresholdDc = 0.2; weight = 1.0 }
+    @{ name = "thresh2v0";  thresholdAc = 5.0;  thresholdDc = 1.0; weight = 1.5 }  # Primary target
+    @{ name = "thresh0v0";  thresholdAc = 0.5;  thresholdDc = 1.8; weight = 2.0 }  # Most critical
 )
 
 # Verify calibration tool exists
@@ -175,6 +186,8 @@ foreach ($gain in $gainValues) {
                     knee        = $knee
                     cvMax       = $cvMax
                     curve       = $curve
+                    thresholdAc = $curve.thresholdAc
+                    thresholdDc = $curve.thresholdDc
                     paramSetDir = $paramSetDir
                     csvOut      = Join-Path $paramSetDir "$($curve.name).csv"
                 })
@@ -220,15 +233,15 @@ $taskIdx = 0
 foreach ($task in $tasks) {
     $taskIdx++
     $pct = [math]::Round(100.0 * $taskIdx / $totalRuns, 1)
-    Write-Host "[$pct%] Queue ($taskIdx/$totalRuns): $($task.curve.name) gain=$($task.gain) knee=$($task.knee) cvMax=$($task.cvMax)" -ForegroundColor DarkGray
+    Write-Host "[$pct%] Queue ($taskIdx/$totalRuns): $($task.curve.name) ac=$($task.thresholdAc) dc=$($task.thresholdDc) gain=$($task.gain) knee=$($task.knee) cvMax=$($task.cvMax)" -ForegroundColor DarkGray
 
     $job = Start-Job -ScriptBlock {
-        param($exePath, $threshold, $gain, $knee, $cvMax, $csvOut, $curveName, $curveWeight, $transferMinDbfs, $transferMaxDbfs, $transferStepDb, $transferMeasureSamples, $transferSettleMultiplier, $transferMinSettleSec, $transferSweepMode, $transferResetPerLevel)
+        param($exePath, $thresholdAc, $thresholdDc, $gain, $knee, $cvMax, $csvOut, $curveName, $curveWeight, $transferMinDbfs, $transferMaxDbfs, $transferStepDb, $transferMeasureSamples, $transferSettleMultiplier, $transferMinSettleSec, $transferSweepMode, $transferResetPerLevel)
         $resetArg = @()
         if ($transferResetPerLevel) {
             $resetArg = @("--transfer-reset-per-level")
         }
-        $jobOutput = & $exePath --measure-transfer --position 1 --threshold $threshold `
+        $jobOutput = & $exePath --measure-transfer --position 1 --threshold-ac $thresholdAc --threshold-dc $thresholdDc `
             --sidechain-gain $gain `
             --cv-soft-knee $knee `
             --cv-max $cvMax `
@@ -250,7 +263,7 @@ foreach ($task in $tasks) {
             jobOutput   = ($jobOutput | Out-String)
             success     = ($exitCode -eq 0) -and (Test-Path $csvOut)
         }
-    } -ArgumentList $exePath, $task.curve.threshold, $task.gain, $task.knee, $task.cvMax, $task.csvOut, $task.curve.name, $task.curve.weight, $TransferMinDbfs, $TransferMaxDbfs, $TransferStepDb, $transferMeasureSamples, $transferSettleMultiplier, $transferMinSettleSec, $transferSweepMode, $transferResetPerLevel
+    } -ArgumentList $exePath, $task.thresholdAc, $task.thresholdDc, $task.gain, $task.knee, $task.cvMax, $task.csvOut, $task.curve.name, $task.curve.weight, $TransferMinDbfs, $TransferMaxDbfs, $TransferStepDb, $transferMeasureSamples, $transferSettleMultiplier, $transferMinSettleSec, $transferSweepMode, $transferResetPerLevel
 
     $pending.Add([pscustomobject]@{ job = $job; task = $task })
 
@@ -486,6 +499,14 @@ Write-Host "Full results saved to: $summaryPath" -ForegroundColor DarkGray
 $protocolSummaryPath = Join-Path $OutputDir "protocol_summary.json"
 $protocolSummary = [ordered]@{
     generatedAt = (Get-Date).ToString("o")
+    curves = @($curves | ForEach-Object {
+        [ordered]@{
+            name = $_.name
+            thresholdAc = $_.thresholdAc
+            thresholdDc = $_.thresholdDc
+            weight = $_.weight
+        }
+    })
     thresholds = [ordered]@{
         checkpoint1Db = $Checkpoint1Db
         checkpoint2Db = $Checkpoint2Db
@@ -506,7 +527,7 @@ $protocolSummary | ConvertTo-Json -Depth 6 | Set-Content $protocolSummaryPath
 Write-Host "Protocol summary saved to: $protocolSummaryPath" -ForegroundColor DarkGray
 
 # Generate mandatory protocol report + sensitivity matrix + identifiability gate.
-$analyzerPath = ".\scripts\analyze_calibration_sweep.py"
+$analyzerPath = Join-Path $PSScriptRoot "analyze_calibration_sweep.py"
 if (Test-Path $analyzerPath) {
     Write-Host "Generating extended protocol report artifacts..." -ForegroundColor Cyan
     $analyzerArgs = @(
@@ -542,7 +563,7 @@ Write-Host ""
 Write-Host "Action Required:" -ForegroundColor Cyan
 Write-Host "1. Review protocol_summary.json and top protocol-ranked candidates"
 if ($best -ne $null) {
-    Write-Host "2. If satisfied, run: .\scripts\lock_and_regenerate.ps1 -SidechainGain $($best.gain) -CvSoftKnee $($best.knee) -CvMax $($best.cvMax)"
+    Write-Host "2. If satisfied, run: .\calibration\scripts\lock_and_regenerate.ps1 -SidechainGain $($best.gain) -CvSoftKnee $($best.knee) -CvMax $($best.cvMax)"
     Write-Host "   OR choose another PASSING candidate from protocol_summary.json"
 } else {
     Write-Host "2. No lock step allowed: adjust model/sweep and rerun until at least one passing candidate exists"

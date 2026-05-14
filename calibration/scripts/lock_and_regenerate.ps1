@@ -16,11 +16,21 @@ param(
     [double]$CvSoftKnee = 0.75,
     [double]$CvMax = 9.0,
     [string]$BuildDir = "build\vs2026-x64\tools\Release\",
-    [string]$ProtocolSummaryPath = "tmp\calibration_sweep\protocol_summary.json",
+    [string]$ProtocolSummaryPath = "calibration\outputs\calibration_sweep\protocol_summary.json",
     [switch]$SkipProtocolGate = $false
 )
 
 $ErrorActionPreference = "Stop"
+
+# Script lives under calibration/scripts after refactor.
+$projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+
+if (-not [System.IO.Path]::IsPathRooted($BuildDir)) {
+    $BuildDir = Join-Path $projectRoot $BuildDir
+}
+if (-not [System.IO.Path]::IsPathRooted($ProtocolSummaryPath)) {
+    $ProtocolSummaryPath = Join-Path $projectRoot $ProtocolSummaryPath
+}
 
 Write-Host "Locking calibration parameters into codebase..." -ForegroundColor Cyan
 Write-Host "  sidechainAmplifierGain = $SidechainGain"
@@ -30,7 +40,7 @@ Write-Host ""
 
 if (-not $SkipProtocolGate) {
     if (-not (Test-Path $ProtocolSummaryPath)) {
-        Write-Error "Protocol summary not found: $ProtocolSummaryPath. Run scripts\sweep_global_calibration.ps1 first or pass -SkipProtocolGate."
+        Write-Error "Protocol summary not found: $ProtocolSummaryPath. Run calibration\scripts\sweep_global_calibration.ps1 first or pass -SkipProtocolGate."
         exit 1
     }
 
@@ -57,7 +67,7 @@ if (-not $SkipProtocolGate) {
 }
 
 # Find the core header file
-$coreHeaderPath = "src\DSP\Models\Fairchild\Fairchild670Core.h"
+$coreHeaderPath = Join-Path $projectRoot "src\DSP\Models\Fairchild\Fairchild670Core.h"
 if (-not (Test-Path $coreHeaderPath)) {
     Write-Error "Core header not found: $coreHeaderPath"
     exit 1
@@ -82,7 +92,7 @@ Set-Content -Path $coreHeaderPath -Value $content -NoNewline
     Write-Host "  [OK] Updated sidechainAmplifierGain and sidechainCvSoftKneeV" -ForegroundColor Green
 
 # Check if cvMaxV needs updating (usually in VariableMuPushPullStage or stage config)
-$stageHeaderPath = "src\DSP\Models\Fairchild\VariableMuPushPullStage.h"
+$stageHeaderPath = Join-Path $projectRoot "src\DSP\Models\Fairchild\VariableMuPushPullStage.h"
 if (Test-Path $stageHeaderPath) {
     Write-Host "Checking $stageHeaderPath..." -ForegroundColor DarkGray
     $stageContent = Get-Content $stageHeaderPath -Raw
@@ -102,7 +112,7 @@ Write-Host ""
 Write-Host "Rebuilding project..." -ForegroundColor Cyan
 
 # Find cmake executable using the helper script
-$findCmakePath = ".\scripts\find-cmake.ps1"
+$findCmakePath = Join-Path $projectRoot "scripts\find-cmake.ps1"
 if (Test-Path $findCmakePath) {
     $output = & $findCmakePath
     # Last line should be the cmake path
@@ -142,17 +152,17 @@ if (-not (Test-Path $exePath)) {
 # Regenerate reference curves
 Write-Host ""
 Write-Host "Regenerating official reference curves..." -ForegroundColor Cyan
-& ".\scripts\generate_transfer_references.ps1" -SidechainGain $SidechainGain -CvSoftKnee $CvSoftKnee -CvMax $CvMax
+& (Join-Path $projectRoot "calibration\scripts\generate_transfer_references.ps1") -SidechainGain $SidechainGain -CvSoftKnee $CvSoftKnee -CvMax $CvMax
 
 Write-Host ""
 Write-Host "SUCCESS!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:"
-Write-Host "  1. Review generated CSV files in tests/"
-Write-Host "  2. Verify PNG plots in tmp/"
+Write-Host "  1. Review generated CSV files in calibration/reference/"
+Write-Host "  2. Verify PNG plots in calibration/plots/"
 Write-Host "  3. Run unit tests: .\build\vs2026-x64\Release\phu_transfer_curve_tests.exe"
 Write-Host "  4. Commit changes:"
 Write-Host "     git add src/DSP/Models/Fairchild/Fairchild670Core.h"
-Write-Host "     git add tests/transfer_curve_ref_*.csv"
+Write-Host "     git add calibration/reference/transfer_curve_ref_*.csv"
     Write-Host "     git commit -m \"Lock calibration: gain=$SidechainGain, knee=$CvSoftKnee, cvMax=$CvMax\""
 Write-Host ""

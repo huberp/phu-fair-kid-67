@@ -79,7 +79,7 @@ plus sweep direction tags for up/down hysteresis checks.
 ./build/tools/phu_calibrate --measure-transfer --position 1 > /tmp/p1_transfer.csv
 
 # Position 1, threshold = 3 V (compress only above a moderate level):
-./build/tools/phu_calibrate --measure-transfer --position 1 --threshold 3.0 \
+./build/tools/phu_calibrate --measure-transfer --position 1 --threshold-ac 3.0 --threshold-dc 0.2 \
     > /tmp/p1_transfer_thr3.csv
 
 # Combine timing and transfer in one run:
@@ -87,7 +87,7 @@ plus sweep direction tags for up/down hysteresis checks.
     --output /tmp/p1_all.csv
 
 # High-drive + path-check sweep (up and down):
-./build/tools/phu_calibrate --measure-transfer --position 1 --threshold 0 \
+./build/tools/phu_calibrate --measure-transfer --position 1 --threshold-ac 0.5 --threshold-dc 1.8 \
     --transfer-min-dbfs -60 --transfer-max-dbfs 6 --transfer-step-db 3 \
     --transfer-sweep-mode both --transfer-measure-samples 4096 \
     --transfer-settle-multiplier 20 \
@@ -131,16 +131,16 @@ dual-slope shape.
 python3 scripts/plot_transfer.py /tmp/p1_transfer.csv
 # With manual-derived reference overlay:
 python3 scripts/plot_transfer.py /tmp/p1_transfer.csv \
-    --reference tests/transfer_curve_reference.csv \
+    --reference calibration/reference/transfer_curve_reference.csv \
     --output /tmp/p1_transfer.png
 
 # Calibration dashboard across all five threshold references:
 python3 scripts/plot_transfer.py \
-    tests/transfer_curve_ref_thresh10v0.csv \
-    tests/transfer_curve_ref_thresh3v5.csv \
-    tests/transfer_curve_ref_thresh2v8.csv \
-    tests/transfer_curve_ref_thresh2v0.csv \
-    tests/transfer_curve_ref_thresh0v0.csv \
+    calibration/reference/transfer_curve_ref_thresh10v0.csv \
+    calibration/reference/transfer_curve_ref_thresh3v5.csv \
+    calibration/reference/transfer_curve_ref_thresh2v8.csv \
+    calibration/reference/transfer_curve_ref_thresh2v0.csv \
+    calibration/reference/transfer_curve_ref_thresh0v0.csv \
     --output /tmp/transfer_family_dashboard.png
 ```
 

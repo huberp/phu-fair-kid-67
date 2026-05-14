@@ -63,9 +63,18 @@ The legend lists five numbered configurations.  Each curve was measured at a **1
 4. AC THRESHOLD control fully CW and DC THRESHOLD control slightly CCW from CW position.
 5. AC THRESHOLD control fully CW, DC THRESHOLD control slightly CW from CCW position.
 
+### Rotation terminology used in the legend
+
+- **CW** means clockwise rotation of a potentiometer shaft.
+- **CCW** means counter-clockwise rotation.
+- **"slightly CW from CCW"** means start at full CCW (minimum), then rotate a small amount toward CW.
+- **"slightly CCW from CW"** means start at full CW (maximum), then rotate a small amount back toward CCW.
+
 ### What "AC THRESHOLD" and "DC THRESHOLD" mean in the hardware
 
-The Fairchild 670 has **two separate threshold potentiometers** on the sidechain board:
+The Fairchild 670 has **two separate sidechain calibration potentiometers** on the sidechain board.
+In this document, they are treated as **internal alignment controls** used for service/factory setup,
+not as day-to-day programme controls:
 
 | Control       | Function |
 |---------------|----------|
@@ -73,6 +82,8 @@ The Fairchild 670 has **two separate threshold potentiometers** on the sidechain
 | **DC THRESHOLD** | Applies a fixed DC bias current directly to the control grids of the 6386 variable-mu tubes, independently of the audio signal. A small DC current at the grid nudges the tube's operating point toward greater gain reduction at all times. |
 
 Together they allow fine-grained calibration of the onset (AC) and depth floor (DC) of the compressor.
+
+Operational controls (front-panel use) are conceptually separate from these internal AC/DC calibration trims.
 
 ---
 
@@ -231,7 +242,10 @@ The plug-in applies **unity small-signal gain** normalisation at CV = 0 (see `fa
 
 ## 6. Plug-in Settings to Reproduce Each Reference Curve
 
-The hardware has independent AC THRESHOLD and DC THRESHOLD controls.  The plug-in exposes a **single Threshold parameter per channel** (range 0–10) that is subtracted as a voltage from the sidechain CV:
+The hardware has independent AC THRESHOLD and DC THRESHOLD calibration controls. The plug-in model
+uses operational threshold controls plus internal AC/DC calibration parameters to approximate this behavior.
+
+Historically this project used a **single Threshold parameter per channel** (range 0–10) as:
 
 ```
 effectiveCV = max(0,  detectorCV − thresholdVoltage)
@@ -244,7 +258,8 @@ thresholdVoltage = 10 − Threshold_param
 | 5 (default)     | 5 V               | Onset near −6 dBFS |
 | 10              | 0 V               | Always compressing |
 
-The plug-in does not have a separate DC bias control.  The best practical approximations for each hardware curve are:
+When only a single-threshold path is used, the plug-in does not have a separate DC bias control and curve matching is approximate.
+The table below should be read as a practical approximation baseline, not an exact AC/DC hardware mapping:
 
 | Hardware curve | AC THRESHOLD  | DC THRESHOLD       | **Plug-in Threshold** | Link Mode   | Notes |
 |---------------|--------------|--------------------|-----------------------|-------------|-------|
@@ -285,27 +300,27 @@ cmake --build build
 
 ### 7.2 Measure transfer for each reference curve
 
-Run the tool with the threshold voltage that corresponds to each curve's hardware setting:
+Run the tool with AC/DC sidechain tuple values that approximate each hardware setting:
 
 ```bash
-# Curve ① — straight amplifier (threshold 10 V = no compression)
-./build/tools/phu_calibrate --measure-transfer --position 1 --threshold 10.0 \
+# Curve ① — straight amplifier (AC 10.0 V, DC 0.0 V)
+./build/tools/phu_calibrate --measure-transfer --position 1 --threshold-ac 10.0 --threshold-dc 0.0 \
     --output /tmp/curve1_transfer.csv
 
-# Curve ② — light compression (threshold ~8 V)
-./build/tools/phu_calibrate --measure-transfer --position 1 --threshold 8.0 \
+# Curve ② — light compression (AC 8.0 V, DC 1.5 V)
+./build/tools/phu_calibrate --measure-transfer --position 1 --threshold-ac 8.0 --threshold-dc 1.5 \
     --output /tmp/curve2_transfer.csv
 
-# Curve ③ — factory condition (threshold 5 V = plugin default)
-./build/tools/phu_calibrate --measure-transfer --position 1 --threshold 5.0 \
+# Curve ③ — factory condition (AC 5.0 V, DC 1.0 V)
+./build/tools/phu_calibrate --measure-transfer --position 1 --threshold-ac 5.0 --threshold-dc 1.0 \
     --output /tmp/curve3_transfer.csv
 
-# Curve ⑤ — heavy AC compression (threshold ~3 V)
-./build/tools/phu_calibrate --measure-transfer --position 1 --threshold 3.0 \
+# Curve ⑤ — heavy AC compression, minimal DC (AC 3.0 V, DC 0.2 V)
+./build/tools/phu_calibrate --measure-transfer --position 1 --threshold-ac 3.0 --threshold-dc 0.2 \
     --output /tmp/curve5_transfer.csv
 
-# Curve ④ — maximum compression (threshold 0 V)
-./build/tools/phu_calibrate --measure-transfer --position 1 --threshold 0.0 \
+# Curve ④ — maximum compression (AC 0.5 V, DC 1.8 V)
+./build/tools/phu_calibrate --measure-transfer --position 1 --threshold-ac 0.5 --threshold-dc 1.8 \
     --output /tmp/curve4_transfer.csv
 ```
 
@@ -504,7 +519,7 @@ to:
 
 ### 9.3 DSP parameter tuning guidance
 
-If `TransferCurveTests` fails after adding the hardware-digitised reference points, the following parameters are most likely to need adjustment.  Adjust **one at a time**, re-run `phu_calibrate --measure-transfer --threshold 5.0` after each change, and compare against the §3 factory-condition table:
+If `TransferCurveTests` fails after adding the hardware-digitised reference points, the following parameters are most likely to need adjustment.  Adjust **one at a time**, re-run `phu_calibrate --measure-transfer --threshold-ac 5.0 --threshold-dc 1.0` after each change, and compare against the §3 factory-condition table:
 
 | Parameter | Location | Effect on transfer curve | Direction for more GR |
 |-----------|----------|--------------------------|-----------------------|
@@ -539,10 +554,10 @@ against the factory curve.
 
 | Curve | Hardware setting | Plugin Threshold | Peak GR (at +20 dBm / ~0 dBFS) | Calibration tool flag |
 |-------|-----------------|------------------|---------------------------------|-----------------------|
-| ①    | AC fully CCW     | 0 (10 V)         | 0 dB                            | `--threshold 10.0`    |
-| ②    | AC slight CW, DC max | 2 (8 V)      | 16 dB                           | `--threshold 8.0`     |
-| ⑤    | AC full CW, DC min | 7 (3 V)        | 19 dB                           | `--threshold 3.0`     |
-| ③    | Factory          | 5 (5 V, default) | 23 dB                           | `--threshold 5.0`     |
-| ④    | AC full CW, DC near-max | 9–10 (0–1 V) | 29+ dB                      | `--threshold 0.0`     |
+| ①    | AC fully CCW, DC n/a | AC=10.0 / DC=0.0 | 0 dB                         | `--threshold-ac 10.0 --threshold-dc 0.0` |
+| ②    | AC slight CW, DC max | AC=8.0 / DC=1.5 | 16 dB                         | `--threshold-ac 8.0 --threshold-dc 1.5` |
+| ⑤    | AC full CW, DC min | AC=3.0 / DC=0.2 | 19 dB                          | `--threshold-ac 3.0 --threshold-dc 0.2` |
+| ③    | Factory          | AC=5.0 / DC=1.0  | 23 dB                           | `--threshold-ac 5.0 --threshold-dc 1.0` |
+| ④    | AC full CW, DC near-max | AC=0.5 / DC=1.8 | 29+ dB                   | `--threshold-ac 0.5 --threshold-dc 1.8` |
 
 The reference image (`docs/ManualReferencePlot.png`) is a primary calibration target for the simulation. The factory condition (curve ③) is the most important: the plugin's default settings should produce a transfer curve that falls within ±4 dB of curve ③ across the entire −20 to 0 dBFS input range when using `Threshold = 5`, `Timing = 1`, and `LinkMode = Independent`.

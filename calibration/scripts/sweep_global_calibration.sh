@@ -17,13 +17,13 @@
 #   python3      (for CSV analysis and JSON output)
 #
 # Usage:
-#   ./scripts/sweep_global_calibration.sh [options]
+#   ./calibration/scripts/sweep_global_calibration.sh [options]
 #
 # Options:
 #   --build-dir DIR        Directory containing the phu_calibrate binary
 #                          (default: build/linux-release/tools)
 #   --output-dir DIR       Root folder for all sweep output
-#                          (default: tmp/calibration_sweep)
+#                          (default: calibration/outputs/calibration_sweep)
 #   --quick                Use a smaller parameter grid
 #   --parallelism N        Max concurrent calibration processes (default: 10)
 #   --mono-slack DB        Monotonicity slack in dB (default: 0.10)
@@ -36,7 +36,7 @@ set -euo pipefail
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 BUILD_DIR="build/linux-release/tools"
-OUTPUT_DIR="tmp/calibration_sweep"
+OUTPUT_DIR="calibration/outputs/calibration_sweep"
 QUICK=0
 TASK_PARALLELISM=10
 MONO_SLACK_DB=0.10
@@ -69,7 +69,7 @@ Options:
   --build-dir DIR        Directory containing the phu_calibrate binary
                          (default: build/linux-release/tools)
   --output-dir DIR       Root folder for all sweep output
-                         (default: tmp/calibration_sweep)
+                         (default: calibration/outputs/calibration_sweep)
   --quick                Use a smaller parameter grid
   --parallelism N        Max concurrent calibration processes (default: 10)
   --mono-slack DB        Monotonicity slack in dB (default: 0.10)
@@ -100,6 +100,18 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# ── Path resolution ───────────────────────────────────────────────────────────
+# Script lives under calibration/scripts after refactor.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+if [[ "$BUILD_DIR" != /* ]]; then
+    BUILD_DIR="$PROJECT_ROOT/$BUILD_DIR"
+fi
+if [[ "$OUTPUT_DIR" != /* ]]; then
+    OUTPUT_DIR="$PROJECT_ROOT/$OUTPUT_DIR"
+fi
+
 # ── Validate ──────────────────────────────────────────────────────────────────
 EXE="$BUILD_DIR/phu_calibrate"
 if [[ ! -x "$EXE" ]]; then
@@ -118,7 +130,7 @@ if ! command -v python3 &>/dev/null; then
     exit 1
 fi
 
-ANALYZER="scripts/analyze_calibration_sweep.py"
+ANALYZER="$SCRIPT_DIR/analyze_calibration_sweep.py"
 if [[ ! -f "$ANALYZER" ]]; then
     echo "Error: analyzer script not found at $ANALYZER" >&2
     exit 1
@@ -157,7 +169,8 @@ else
 fi
 
 CURVE_NAMES=(thresh10v0 thresh3v5 thresh2v8 thresh2v0 thresh0v0)
-CURVE_THRESHOLDS=(10.0 3.5 2.8 2.0 0.0)
+CURVE_THRESHOLDS_AC=(10.0 8.0 3.0 5.0 0.5)
+CURVE_THRESHOLDS_DC=(0.0 1.5 0.2 1.0 1.8)
 CURVE_WEIGHTS=(1.0 1.0 1.0 1.5 2.0)
 
 # ── Setup output directory ────────────────────────────────────────────────────
@@ -186,7 +199,8 @@ TASK_GAINS=()
 TASK_KNEES=()
 TASK_CVMAXES=()
 TASK_CURVE_NAMES=()
-TASK_THRESHOLDS=()
+TASK_THRESHOLDS_AC=()
+TASK_THRESHOLDS_DC=()
 TASK_CSV_OUTS=()
 
 for gain in "${GAIN_VALUES[@]}"; do
@@ -199,7 +213,8 @@ for gain in "${GAIN_VALUES[@]}"; do
                 TASK_KNEES+=("$knee")
                 TASK_CVMAXES+=("$cvMax")
                 TASK_CURVE_NAMES+=("${CURVE_NAMES[$i]}")
-                TASK_THRESHOLDS+=("${CURVE_THRESHOLDS[$i]}")
+                TASK_THRESHOLDS_AC+=("${CURVE_THRESHOLDS_AC[$i]}")
+                TASK_THRESHOLDS_DC+=("${CURVE_THRESHOLDS_DC[$i]}")
                 TASK_CSV_OUTS+=("$param_dir/${CURVE_NAMES[$i]}.csv")
             done
         done
@@ -220,7 +235,8 @@ for (( idx=0; idx<TOTAL; idx++ )); do
     knee="${TASK_KNEES[$idx]}"
     cvMax="${TASK_CVMAXES[$idx]}"
     curve_name="${TASK_CURVE_NAMES[$idx]}"
-    threshold="${TASK_THRESHOLDS[$idx]}"
+    threshold_ac="${TASK_THRESHOLDS_AC[$idx]}"
+    threshold_dc="${TASK_THRESHOLDS_DC[$idx]}"
     csv_out="${TASK_CSV_OUTS[$idx]}"
     reset_arg=()
     if [[ $TRANSFER_RESET_PER_LEVEL -eq 1 ]]; then
@@ -228,11 +244,12 @@ for (( idx=0; idx<TOTAL; idx++ )); do
     fi
 
     pct=$(( 100 * (idx + 1) / TOTAL ))
-    echo "[$pct%] Queue ($((idx+1))/$TOTAL): $curve_name gain=$gain knee=$knee cvMax=$cvMax"
+    echo "[$pct%] Queue ($((idx+1))/$TOTAL): $curve_name ac=$threshold_ac dc=$threshold_dc gain=$gain knee=$knee cvMax=$cvMax"
 
     (
         "$EXE" --measure-transfer --position 1 \
-            --threshold  "$threshold" \
+            --threshold-ac "$threshold_ac" \
+            --threshold-dc "$threshold_dc" \
             --sidechain-gain "$gain" \
             --cv-soft-knee   "$knee" \
             --cv-max         "$cvMax" \

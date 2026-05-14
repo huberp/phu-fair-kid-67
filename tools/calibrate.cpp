@@ -137,7 +137,8 @@ static void measureTiming(std::ostream& out,
 static void measureTransfer(std::ostream& out,
                              int           positionIdx,
                              double        sampleRate,
-                             float         threshVoltage = 0.0f,
+                             float         acThreshVoltage = 0.0f,
+                             float         dcBiasVoltage = 0.0f,
                              float         sidechainGain = 0.7f,
                              float         cvSoftKneeV   = 0.75f,
                              float         cvMaxV        = 9.0f,
@@ -159,7 +160,8 @@ static void measureTransfer(std::ostream& out,
     out << "# transfer_measurement\n";
     out << "# position=" << (positionIdx + 1)
         << " kind=" << (preset.kind == TimingKind::Fixed ? "Fixed" : "AutoRelease")
-        << " threshold_v=" << threshVoltage
+        << " threshold_ac_v=" << acThreshVoltage
+        << " threshold_dc_v=" << dcBiasVoltage
         << " sidechain_gain=" << sidechainGain
         << " cv_soft_knee_v=" << cvSoftKneeV
         << " cv_max_v=" << cvMaxV
@@ -211,8 +213,10 @@ static void measureTransfer(std::ostream& out,
     auto runSweep = [&](const std::vector<float>& sweepLevels, const char* sweepLabel) {
         Fairchild670Core core(cfg);
         core.prepare(sampleRate);
-        core.setThresholdLeft(threshVoltage);
-        core.setThresholdRight(threshVoltage);
+        core.setAcThresholdLeft(acThreshVoltage);
+        core.setAcThresholdRight(acThreshVoltage);
+        core.setDcBiasLeft(dcBiasVoltage);
+        core.setDcBiasRight(dcBiasVoltage);
 
         float outL = 0.0f, outR = 0.0f;
         const float freqHz = 1000.0f;
@@ -225,8 +229,10 @@ static void measureTransfer(std::ostream& out,
             if (resetPerLevel) {
                 core = Fairchild670Core(cfg);
                 core.prepare(sampleRate);
-                core.setThresholdLeft(threshVoltage);
-                core.setThresholdRight(threshVoltage);
+                core.setAcThresholdLeft(acThreshVoltage);
+                core.setAcThresholdRight(acThreshVoltage);
+                core.setDcBiasLeft(dcBiasVoltage);
+                core.setDcBiasRight(dcBiasVoltage);
                 phase = 0.0;
             }
 
@@ -312,7 +318,9 @@ static void printHelp(const char* progName)
         << "  --measure-transfer   Emit transfer-curve CSV.\n"
         << "  --position <1-6>     Timing switch position (default: 1).\n"
         << "  --sample-rate <Hz>   Sample rate in Hz (default: 44100).\n"
-        << "  --threshold <V>      Threshold voltage for transfer measurement (default: 0).\n"
+        << "  --threshold-ac <V>   AC threshold voltage for transfer measurement (default: 0).\n"
+        << "  --threshold-dc <V>   DC bias voltage for transfer measurement (default: 0).\n"
+        << "  --threshold <V>      Legacy alias for --threshold-ac.\n"
         << "  --sidechain-gain <x> Sidechain CV gain scalar (default: 0.7).\n"
         << "  --cv-soft-knee <V>   Soft-knee width before CV ceiling clamp (default: 0.75).\n"
         << "  --cv-max <V>         Maximum stage CV ceiling (default: 9.0).\n"
@@ -340,7 +348,8 @@ int main(int argc, char* argv[])
     bool        doTransfer    = false;
     int         position      = 1;       // 1-based
     double      sampleRate    = 44100.0;
-    float       thresholdV    = 0.0f;
+    float       thresholdAcV  = 0.0f;
+    float       thresholdDcV  = 0.0f;
     float       sidechainGain = 0.7f;
     float       cvSoftKneeV   = 0.75f;
     float       cvMaxV        = 9.0f;
@@ -368,8 +377,12 @@ int main(int argc, char* argv[])
             position = std::stoi(argv[++i]);
         } else if (arg == "--sample-rate" && i + 1 < argc) {
             sampleRate = std::stod(argv[++i]);
+        } else if (arg == "--threshold-ac" && i + 1 < argc) {
+            thresholdAcV = std::stof(argv[++i]);
+        } else if (arg == "--threshold-dc" && i + 1 < argc) {
+            thresholdDcV = std::stof(argv[++i]);
         } else if (arg == "--threshold" && i + 1 < argc) {
-            thresholdV = std::stof(argv[++i]);
+            thresholdAcV = std::stof(argv[++i]);
         } else if (arg == "--sidechain-gain" && i + 1 < argc) {
             sidechainGain = std::stof(argv[++i]);
         } else if (arg == "--cv-soft-knee" && i + 1 < argc) {
@@ -433,6 +446,11 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    if (thresholdDcV < 0.0f) {
+        std::cerr << "Error: --threshold-dc must be non-negative.\n";
+        return 1;
+    }
+
     if (cvSoftKneeV < 0.0f) {
         std::cerr << "Error: --cv-soft-knee must be non-negative.\n";
         return 1;
@@ -482,7 +500,8 @@ int main(int argc, char* argv[])
         measureTransfer(out,
                         posIdx,
                         sampleRate,
-                        thresholdV,
+                        thresholdAcV,
+                        thresholdDcV,
                         sidechainGain,
                         cvSoftKneeV,
                         cvMaxV,

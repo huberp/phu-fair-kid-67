@@ -71,11 +71,21 @@ const Row& nearestRow(const std::vector<Row>& rows, const float inputDbfs)
     });
 }
 
+std::filesystem::path resolveReferenceRoot()
+{
+    const auto testsRoot = std::filesystem::path(__FILE__).parent_path();
+    const auto calibrationRoot = testsRoot.parent_path() / "calibration" / "reference";
+    if (std::filesystem::exists(calibrationRoot)) {
+        return calibrationRoot;
+    }
+    return testsRoot;
+}
+
 } // namespace
 
 TEST_CASE("TransferFamily: reference CSV files are present and non-empty", "[transfer][family]")
 {
-    const std::filesystem::path root = std::filesystem::path(__FILE__).parent_path();
+    const std::filesystem::path root = resolveReferenceRoot();
     for (const auto* name : {
              "transfer_curve_ref_thresh10v0.csv",
              "transfer_curve_ref_thresh3v5.csv",
@@ -91,7 +101,7 @@ TEST_CASE("TransferFamily: reference CSV files are present and non-empty", "[tra
 
 TEST_CASE("TransferFamily: five-curve ordering and minimum separation at checkpoints", "[transfer][family][conformance]")
 {
-    const std::filesystem::path root = std::filesystem::path(__FILE__).parent_path();
+    const std::filesystem::path root = resolveReferenceRoot();
     const auto base = loadRows(root / "transfer_curve_ref_thresh10v0.csv");
     const auto c35  = loadRows(root / "transfer_curve_ref_thresh3v5.csv");
     const auto c28  = loadRows(root / "transfer_curve_ref_thresh2v8.csv");

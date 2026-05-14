@@ -165,16 +165,19 @@ void Fairchild670Core::processStereo(float inL, float inR,
     const float rawCvL = detectorL_.processSample(xfmrInL);
     const float rawCvR = detectorR_.processSample(xfmrInR);
 
-    // 3b. For Mid/Side link mode, derive the sidechain CV from the Mid signal.
+    // 3b. Compose AC/DC threshold contributions before link logic.
+    // AC threshold gates programme-dependent detector CV. DC bias adds a fixed
+    // floor independent of instantaneous detector drive.
     float effectiveCvL, effectiveCvR;
     if (cfg_.linkMode == LinkMode::MidSide) {
         const float mid = (rawCvL + rawCvR) * 0.5f;
-        const float threshMid = (thresholdVoltageL_ + thresholdVoltageR_) * 0.5f;
-        const float cvMid = std::max(0.0f, mid - threshMid);
+        const float acThreshMid = (acThresholdVoltageL_ + acThresholdVoltageR_) * 0.5f;
+        const float dcBiasMid = (dcBiasVoltageL_ + dcBiasVoltageR_) * 0.5f;
+        const float cvMid = std::max(0.0f, mid - acThreshMid) + dcBiasMid;
         effectiveCvL = effectiveCvR = cvMid;
     } else {
-        effectiveCvL = std::max(0.0f, rawCvL - thresholdVoltageL_);
-        effectiveCvR = std::max(0.0f, rawCvR - thresholdVoltageR_);
+        effectiveCvL = std::max(0.0f, rawCvL - acThresholdVoltageL_) + dcBiasVoltageL_;
+        effectiveCvR = std::max(0.0f, rawCvR - acThresholdVoltageR_) + dcBiasVoltageR_;
     }
 
     // 4. Compute the final CV per channel based on link mode.

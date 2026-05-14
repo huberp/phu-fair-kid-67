@@ -176,11 +176,11 @@ For calibration-family diagnostics, pass all five generated CSVs at once:
 
 ```bash
 python3 scripts/plot_transfer.py \
-    tests/transfer_curve_ref_thresh10v0.csv \
-    tests/transfer_curve_ref_thresh3v5.csv \
-    tests/transfer_curve_ref_thresh2v8.csv \
-    tests/transfer_curve_ref_thresh2v0.csv \
-    tests/transfer_curve_ref_thresh0v0.csv \
+    calibration/reference/transfer_curve_ref_thresh10v0.csv \
+    calibration/reference/transfer_curve_ref_thresh3v5.csv \
+    calibration/reference/transfer_curve_ref_thresh2v8.csv \
+    calibration/reference/transfer_curve_ref_thresh2v0.csv \
+    calibration/reference/transfer_curve_ref_thresh0v0.csv \
     --output /tmp/transfer_family_dashboard.png
 ```
 
@@ -197,11 +197,11 @@ python3 scripts/plot_transfer.py /tmp/p1_transfer.csv
 
 # With manual reference overlay:
 python3 scripts/plot_transfer.py /tmp/p1_transfer.csv \
-    --reference tests/transfer_curve_reference.csv
+    --reference calibration/reference/transfer_curve_reference.csv
 
 # Save to PNG:
 python3 scripts/plot_transfer.py /tmp/p1_transfer.csv \
-    --reference tests/transfer_curve_reference.csv \
+    --reference calibration/reference/transfer_curve_reference.csv \
     --output /tmp/p1_transfer.png
 ```
 
@@ -223,7 +223,7 @@ The `note` column is ignored by the plotter but useful for documentation. Refere
 
 ### What it does
 
-Post-processes sweep outputs under `tmp/calibration_sweep/` and writes mandatory calibration artifacts:
+Post-processes sweep outputs under `calibration/outputs/calibration_sweep/` and writes mandatory calibration artifacts:
 
 - `sweep_results.json` (ranked parameter sets)
 - `protocol_summary.json` (best candidate + thresholds + identifiability summary)
@@ -234,7 +234,7 @@ Post-processes sweep outputs under `tmp/calibration_sweep/` and writes mandatory
 ### Usage
 
 ```bash
-python3 scripts/analyze_calibration_sweep.py --output-root tmp/calibration_sweep
+python3 calibration/scripts/analyze_calibration_sweep.py --output-root calibration/outputs/calibration_sweep
 ```
 
 The analyzer exits non-zero when no passing candidates exist, and returns a dedicated
