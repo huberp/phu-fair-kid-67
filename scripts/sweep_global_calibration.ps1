@@ -27,7 +27,7 @@ param(
     [double]$MinSepAtCheckpoint1Db = 0.50,
     [double]$MinSepAtCheckpoint2Db = 0.50,
     [double]$RegularizationWeight = 0.2,
-    [int]$CurveParallelism = 8
+    [int]$TaskParallelism = 10
 )
 
 $ErrorActionPreference = "Stop"
@@ -68,6 +68,40 @@ function Get-NearestRow {
     return $best
 }
 
+# Wait for any one pending job to complete, collect its result, and remove it
+# from $Pending.  The result is appended to $AllRuns.
+function Complete-PendingJob {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.Generic.List[pscustomobject]]$Pending,
+        [Parameter(Mandatory = $true)]
+        [System.Collections.Generic.List[pscustomobject]]$AllRuns
+    )
+    $doneJob = Wait-Job -Job ($Pending | ForEach-Object { $_.job }) -Any
+    $result  = Receive-Job -Job $doneJob
+    Remove-Job -Job $doneJob
+    # Find and remove in one pass to avoid iterating $Pending twice.
+    $entry = $null
+    for ($i = 0; $i -lt $Pending.Count; $i++) {
+        if ($Pending[$i].job.Id -eq $doneJob.Id) {
+            $entry = $Pending[$i]
+            $Pending.RemoveAt($i)
+            break
+        }
+    }
+    $AllRuns.Add([pscustomobject]@{
+        gain        = $entry.task.gain
+        knee        = $entry.task.knee
+        cvMax       = $entry.task.cvMax
+        curveName   = $result.curveName
+        curveWeight = $result.curveWeight
+        csvPath     = $result.csvPath
+        exitCode    = $result.exitCode
+        jobOutput   = $result.jobOutput
+        success     = $result.success
+    })
+}
+
 # Define test matrix
 if ($Quick) {
     # Broaden quick exploration so we can still discover separated curve families.
@@ -97,8 +131,8 @@ if (-not (Test-Path $exe)) {
 }
 $exePath = (Resolve-Path $exe).Path
 
-if ($CurveParallelism -lt 1) {
-    Write-Error "CurveParallelism must be >= 1"
+if ($TaskParallelism -lt 1) {
+    Write-Error "TaskParallelism must be >= 1"
     exit 1
 }
 
@@ -110,8 +144,29 @@ $outputRoot = (Resolve-Path $OutputDir).Path
 
 # Storage for results
 $results = @()
-$runCount = 0
-$totalRuns = $gainValues.Count * $kneeValues.Count * $cvMaxValues.Count * $curves.Count
+
+# ── Build complete flat task list covering all nested-loop cases ──────────────
+$tasks = [System.Collections.Generic.List[pscustomobject]]::new()
+foreach ($gain in $gainValues) {
+    foreach ($knee in $kneeValues) {
+        foreach ($cvMax in $cvMaxValues) {
+            $paramSetName = "gain_$([math]::Round($gain, 2))_knee_$([math]::Round($knee, 2))_cvMax_$([math]::Round($cvMax, 1))"
+            $paramSetDir  = Join-Path $outputRoot $paramSetName
+            foreach ($curve in $curves) {
+                $tasks.Add([pscustomobject]@{
+                    gain        = $gain
+                    knee        = $knee
+                    cvMax       = $cvMax
+                    curve       = $curve
+                    paramSetDir = $paramSetDir
+                    csvOut      = Join-Path $paramSetDir "$($curve.name).csv"
+                })
+            }
+        }
+    }
+}
+
+$totalRuns = $tasks.Count
 
 Write-Host "Starting global calibration sweep..."
 Write-Host "Configuration:" -ForegroundColor Cyan
@@ -124,168 +179,136 @@ Write-Host "  Min separation (3.5->2.0): [CP1=$minSep35To20AtCheckpoint1Db dB, C
 Write-Host "  Min separation: [$minSepAtCheckpoint1Db dB, $minSepAtCheckpoint2Db dB]"
 Write-Host "  Monotonicity slack: $monoSlackDb dB"
 Write-Host "  Tail minimum slope: $tailMinSlopeDb dB"
-Write-Host "  Curve parallelism: $CurveParallelism"
+Write-Host "  Task parallelism: $TaskParallelism"
 Write-Host "  Curves: $(($curves | ForEach-Object { $_.name }) -join ', ')"
-Write-Host "  Total runs: $totalRuns (approx $(($totalRuns * 5) / 60) minutes)"
+Write-Host "  Total tasks: $totalRuns ($($totalRuns / $curves.Count) param sets x $($curves.Count) curves)"
 Write-Host ""
 
-# Main sweep loop
-foreach ($gain in $gainValues) {
-    foreach ($knee in $kneeValues) {
-        foreach ($cvMax in $cvMaxValues) {
-            
-            $paramSetName = "gain_$([math]::Round($gain, 2))_knee_$([math]::Round($knee, 2))_cvMax_$([math]::Round($cvMax, 1))"
-            $paramSetDir = Join-Path $outputRoot $paramSetName
-            if (-not (Test-Path $paramSetDir)) {
-                New-Item -ItemType Directory -Path $paramSetDir -Force | Out-Null
-            }
+# Pre-create all output directories to avoid races between parallel jobs.
+$tasks | ForEach-Object {
+    if (-not (Test-Path $_.paramSetDir)) {
+        New-Item -ItemType Directory -Path $_.paramSetDir -Force | Out-Null
+    }
+}
 
-            $curveRuns = @()
-            if ($CurveParallelism -gt 1) {
-                $jobs = @()
-                foreach ($curve in $curves) {
-                    $runCount++
-                    $pct = [math]::Round(100 * $runCount / $totalRuns, 1)
-                    Write-Host "[$pct%] Queue: $($curve.name) with gain=$gain knee=$knee cvMax=$cvMax" -ForegroundColor DarkGray
+# ── Run all tasks through a global sliding parallel job window ────────────────
+$allRuns = [System.Collections.Generic.List[pscustomobject]]::new()
+$pending = [System.Collections.Generic.List[pscustomobject]]::new()
+$taskIdx = 0
 
-                    $csvOut = Join-Path $paramSetDir "$($curve.name).csv"
-                    $jobs += Start-Job -ScriptBlock {
-                        param($exePath, $threshold, $gain, $knee, $cvMax, $csvOut, $curveName, $curveWeight)
+foreach ($task in $tasks) {
+    $taskIdx++
+    $pct = [math]::Round(100.0 * $taskIdx / $totalRuns, 1)
+    Write-Host "[$pct%] Queue ($taskIdx/$totalRuns): $($task.curve.name) gain=$($task.gain) knee=$($task.knee) cvMax=$($task.cvMax)" -ForegroundColor DarkGray
 
-                        $jobOutput = & $exePath --measure-transfer --position 1 --threshold $threshold `
-                            --sidechain-gain $gain `
-                            --cv-soft-knee $knee `
-                            --cv-max $cvMax `
-                            --output $csvOut 2>&1
-                        $exitCode = $LASTEXITCODE
-
-                        [pscustomobject]@{
-                            curveName = $curveName
-                            curveWeight = $curveWeight
-                            csvPath = $csvOut
-                            exitCode = $exitCode
-                            output = ($jobOutput | Out-String)
-                            success = (Test-Path $csvOut)
-                        }
-                    } -ArgumentList $exePath, $curve.threshold, $gain, $knee, $cvMax, $csvOut, $curve.name, $curve.weight
-
-                    while ($jobs.Count -ge $CurveParallelism) {
-                        $done = Wait-Job -Job $jobs -Any
-                        $curveRuns += Receive-Job -Job $done
-                        Remove-Job -Job $done
-                        $jobs = @($jobs | Where-Object { $_.Id -ne $done.Id })
-                    }
-                }
-
-                if ($jobs.Count -gt 0) {
-                    Wait-Job -Job $jobs | Out-Null
-                    foreach ($job in $jobs) {
-                        $curveRuns += Receive-Job -Job $job
-                        Remove-Job -Job $job
-                    }
-                }
-            } else {
-                foreach ($curve in $curves) {
-                    $runCount++
-                    $pct = [math]::Round(100 * $runCount / $totalRuns, 1)
-                    Write-Host "[$pct%] Testing: $($curve.name) with gain=$gain knee=$knee cvMax=$cvMax" -ForegroundColor DarkGray
-
-                    $csvOut = Join-Path $paramSetDir "$($curve.name).csv"
-
-                    & $exePath --measure-transfer --position 1 --threshold $curve.threshold `
-                        --sidechain-gain $gain `
-                        --cv-soft-knee $knee `
-                        --cv-max $cvMax `
-                        --output $csvOut 2>&1 | Out-Null
-
-                    $curveRuns += [pscustomobject]@{
-                        curveName = $curve.name
-                        curveWeight = $curve.weight
-                        csvPath = $csvOut
-                        success = (Test-Path $csvOut)
-                    }
-                }
-            }
-
-            foreach ($curveRun in $curveRuns) {
-                $csvOut = [string]$curveRun.csvPath
-                if (-not $curveRun.success) {
-                    Write-Warning "Failed to generate: $csvOut (exitCode=$($curveRun.exitCode))"
-                    if ($curveRun.output) {
-                        Write-Host $curveRun.output -ForegroundColor DarkYellow
-                    }
-                    continue
-                }
-                
-                # Parse CSV and calculate right-edge dip metric
-                $rows = @(Get-Content $csvOut | Where-Object { $_ -and -not $_.StartsWith('#') }) | ConvertFrom-Csv
-                
-                if ($rows.Count -lt 5) {
-                    Write-Warning "CSV has insufficient rows: $($rows.Count)"
-                    continue
-                }
-                
-                $allOutputs = @($rows | ForEach-Object { [double]$_.output_dbfs })
-                $allInputs = @($rows | ForEach-Object { [double]$_.input_dbfs })
-                $allGR = @($rows | ForEach-Object { [double]$_.gain_reduction_db })
-                $allCv = @($rows | ForEach-Object { [double]$_.cv_volts })
-
-                # Evaluate monotonicity only after knee onset (or entire curve when always-active)
-                $kneeIndex = 0
-                for ($k = 0; $k -lt $allCv.Count; $k++) {
-                    if ($allCv[$k] -gt 0.0) {
-                        $kneeIndex = $k
-                        break
-                    }
-                }
-
-                $rawDeltas = @()
-                for ($i = [math]::Max(1, $kneeIndex); $i -lt $allOutputs.Count; $i++) {
-                    $rawDeltas += ($allOutputs[$i] - $allOutputs[$i - 1])
-                }
-
-                $monoViolations = @($rawDeltas | Where-Object { $_ -lt (0.0 - $monoSlackDb) }).Count
-                
-                # Calculate deltas (slope in final region)
-                $lastRows = $rows | Select-Object -Last 4
-                $outputs = @($lastRows | ForEach-Object { [double]$_.output_dbfs })
-                $deltas = @()
-                $signedTailDeltas = @()
-                for ($i = 1; $i -lt $outputs.Count; $i++) {
-                    $deltas += [math]::Abs($outputs[$i] - $outputs[$i-1])
-                    $signedTailDeltas += ($outputs[$i] - $outputs[$i-1])
-                }
-                $tailMinDelta = ($signedTailDeltas | Measure-Object -Minimum).Minimum
-                $tailDownturn = $tailMinDelta -lt $tailMinSlopeDb
-                
-                # Score: sum of absolute deltas (lower = flatter)
-                $score = ($deltas | Measure-Object -Sum).Sum
-
-                # Checkpoint GR values for family ordering/separation checks.
-                $rowCp1 = Get-NearestRow -Rows $rows -TargetInputDb $Checkpoint1Db
-                $rowCp2 = Get-NearestRow -Rows $rows -TargetInputDb $Checkpoint2Db
-                $grCp1 = [double]$rowCp1.gain_reduction_db
-                $grCp2 = [double]$rowCp2.gain_reduction_db
-                
-                # Store result
-                $results += @{
-                    gain         = $gain
-                    knee         = $knee
-                    cvMax        = $cvMax
-                    curveName    = [string]$curveRun.curveName
-                    curveWeight  = [double]$curveRun.curveWeight
-                    score        = [math]::Round($score, 4)
-                    monoViolations = $monoViolations
-                    tailMinDelta = [math]::Round($tailMinDelta, 4)
-                    tailDownturn = $tailDownturn
-                    grAtCheckpoint1 = [math]::Round($grCp1, 4)
-                    grAtCheckpoint2 = [math]::Round($grCp2, 4)
-                    lastOutputs  = $outputs
-                    deltas       = $deltas
-                    csvPath      = $csvOut
-                }
-            }
+    $job = Start-Job -ScriptBlock {
+        param($exePath, $threshold, $gain, $knee, $cvMax, $csvOut, $curveName, $curveWeight)
+        $jobOutput = & $exePath --measure-transfer --position 1 --threshold $threshold `
+            --sidechain-gain $gain `
+            --cv-soft-knee $knee `
+            --cv-max $cvMax `
+            --output $csvOut 2>&1
+        $exitCode = $LASTEXITCODE
+        [pscustomobject]@{
+            curveName   = $curveName
+            curveWeight = $curveWeight
+            csvPath     = $csvOut
+            exitCode    = $exitCode
+            jobOutput   = ($jobOutput | Out-String)
+            success     = ($exitCode -eq 0) -and (Test-Path $csvOut)
         }
+    } -ArgumentList $exePath, $task.curve.threshold, $task.gain, $task.knee, $task.cvMax, $task.csvOut, $task.curve.name, $task.curve.weight
+
+    $pending.Add([pscustomobject]@{ job = $job; task = $task })
+
+    # When the window is full, wait for the earliest completed job to free a slot.
+    while ($pending.Count -ge $TaskParallelism) {
+        Complete-PendingJob -Pending $pending -AllRuns $allRuns
+    }
+}
+
+# Drain all remaining jobs.
+while ($pending.Count -gt 0) {
+    Complete-PendingJob -Pending $pending -AllRuns $allRuns
+}
+
+# ── Accumulate per-task results ────────────────────────────────────────────────
+foreach ($run in $allRuns) {
+    $csvOut = $run.csvPath
+    if (-not $run.success) {
+        Write-Warning "Failed to generate: $csvOut (exitCode=$($run.exitCode))"
+        if ($run.jobOutput) {
+            Write-Host $run.jobOutput -ForegroundColor DarkYellow
+        }
+        continue
+    }
+
+    # Parse CSV and calculate right-edge dip metric
+    $rows = @(Get-Content $csvOut | Where-Object { $_ -and -not $_.StartsWith('#') }) | ConvertFrom-Csv
+
+    if ($rows.Count -lt 5) {
+        Write-Warning "CSV has insufficient rows: $($rows.Count)"
+        continue
+    }
+
+    $allOutputs = @($rows | ForEach-Object { [double]$_.output_dbfs })
+    $allInputs  = @($rows | ForEach-Object { [double]$_.input_dbfs })
+    $allGR      = @($rows | ForEach-Object { [double]$_.gain_reduction_db })
+    $allCv      = @($rows | ForEach-Object { [double]$_.cv_volts })
+
+    # Evaluate monotonicity only after knee onset (or entire curve when always-active)
+    $kneeIndex = 0
+    for ($k = 0; $k -lt $allCv.Count; $k++) {
+        if ($allCv[$k] -gt 0.0) {
+            $kneeIndex = $k
+            break
+        }
+    }
+
+    $rawDeltas = @()
+    for ($i = [math]::Max(1, $kneeIndex); $i -lt $allOutputs.Count; $i++) {
+        $rawDeltas += ($allOutputs[$i] - $allOutputs[$i - 1])
+    }
+
+    $monoViolations = @($rawDeltas | Where-Object { $_ -lt (0.0 - $monoSlackDb) }).Count
+
+    # Calculate deltas (slope in final region)
+    $lastRows = $rows | Select-Object -Last 4
+    $outputs  = @($lastRows | ForEach-Object { [double]$_.output_dbfs })
+    $deltas   = @()
+    $signedTailDeltas = @()
+    for ($i = 1; $i -lt $outputs.Count; $i++) {
+        $deltas           += [math]::Abs($outputs[$i] - $outputs[$i-1])
+        $signedTailDeltas += ($outputs[$i] - $outputs[$i-1])
+    }
+    $tailMinDelta = ($signedTailDeltas | Measure-Object -Minimum).Minimum
+    $tailDownturn = $tailMinDelta -lt $tailMinSlopeDb
+
+    # Score: sum of absolute deltas (lower = flatter)
+    $score = ($deltas | Measure-Object -Sum).Sum
+
+    # Checkpoint GR values for family ordering/separation checks.
+    $rowCp1 = Get-NearestRow -Rows $rows -TargetInputDb $Checkpoint1Db
+    $rowCp2 = Get-NearestRow -Rows $rows -TargetInputDb $Checkpoint2Db
+    $grCp1  = [double]$rowCp1.gain_reduction_db
+    $grCp2  = [double]$rowCp2.gain_reduction_db
+
+    # Store result
+    $results += @{
+        gain            = $run.gain
+        knee            = $run.knee
+        cvMax           = $run.cvMax
+        curveName       = [string]$run.curveName
+        curveWeight     = [double]$run.curveWeight
+        score           = [math]::Round($score, 4)
+        monoViolations  = $monoViolations
+        tailMinDelta    = [math]::Round($tailMinDelta, 4)
+        tailDownturn    = $tailDownturn
+        grAtCheckpoint1 = [math]::Round($grCp1, 4)
+        grAtCheckpoint2 = [math]::Round($grCp2, 4)
+        lastOutputs     = $outputs
+        deltas          = $deltas
+        csvPath         = $csvOut
     }
 }
 
