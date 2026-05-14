@@ -27,7 +27,12 @@ param(
     [double]$MinSepAtCheckpoint1Db = 0.50,
     [double]$MinSepAtCheckpoint2Db = 0.50,
     [double]$RegularizationWeight = 0.2,
-    [int]$TaskParallelism = 10
+    [int]$TaskParallelism = 10,
+    [ValidateSet("quick", "confirm")]
+    [string]$PrecisionMode = "quick",
+    [double]$TransferMinDbfs = -60.0,
+    [double]$TransferMaxDbfs = 6.0,
+    [double]$TransferStepDb = 3.0
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,6 +51,18 @@ $regularizationWeight = $RegularizationWeight
 $baselineGain = 0.7
 $baselineKnee = 0.75
 $baselineCvMax = 9.0
+
+$transferMeasureSamples = 1024
+$transferSettleMultiplier = 10.0
+$transferMinSettleSec = 2.0
+$transferSweepMode = "up"
+$transferResetPerLevel = $false
+if ($PrecisionMode -eq "confirm") {
+    $transferMeasureSamples = 4096
+    $transferSettleMultiplier = 20.0
+    $transferMinSettleSec = 4.0
+    $transferSweepMode = "both"
+}
 
 function Get-NearestRow {
     param(
@@ -180,6 +197,10 @@ Write-Host "  Min separation: [$minSepAtCheckpoint1Db dB, $minSepAtCheckpoint2Db
 Write-Host "  Monotonicity slack: $monoSlackDb dB"
 Write-Host "  Tail minimum slope: $tailMinSlopeDb dB"
 Write-Host "  Task parallelism: $TaskParallelism"
+Write-Host "  Precision mode: $PrecisionMode"
+Write-Host "  Transfer range: [$TransferMinDbfs, $TransferMaxDbfs] step $TransferStepDb dB"
+Write-Host "  Sweep mode: $transferSweepMode"
+Write-Host "  Measure samples: $transferMeasureSamples"
 Write-Host "  Curves: $(($curves | ForEach-Object { $_.name }) -join ', ')"
 Write-Host "  Total tasks: $totalRuns ($($totalRuns / $curves.Count) param sets x $($curves.Count) curves)"
 Write-Host ""
@@ -202,11 +223,23 @@ foreach ($task in $tasks) {
     Write-Host "[$pct%] Queue ($taskIdx/$totalRuns): $($task.curve.name) gain=$($task.gain) knee=$($task.knee) cvMax=$($task.cvMax)" -ForegroundColor DarkGray
 
     $job = Start-Job -ScriptBlock {
-        param($exePath, $threshold, $gain, $knee, $cvMax, $csvOut, $curveName, $curveWeight)
+        param($exePath, $threshold, $gain, $knee, $cvMax, $csvOut, $curveName, $curveWeight, $transferMinDbfs, $transferMaxDbfs, $transferStepDb, $transferMeasureSamples, $transferSettleMultiplier, $transferMinSettleSec, $transferSweepMode, $transferResetPerLevel)
+        $resetArg = @()
+        if ($transferResetPerLevel) {
+            $resetArg = @("--transfer-reset-per-level")
+        }
         $jobOutput = & $exePath --measure-transfer --position 1 --threshold $threshold `
             --sidechain-gain $gain `
             --cv-soft-knee $knee `
             --cv-max $cvMax `
+            --transfer-min-dbfs $transferMinDbfs `
+            --transfer-max-dbfs $transferMaxDbfs `
+            --transfer-step-db $transferStepDb `
+            --transfer-measure-samples $transferMeasureSamples `
+            --transfer-settle-multiplier $transferSettleMultiplier `
+            --transfer-min-settle-sec $transferMinSettleSec `
+            --transfer-sweep-mode $transferSweepMode `
+            $resetArg `
             --output $csvOut 2>&1
         $exitCode = $LASTEXITCODE
         [pscustomobject]@{
@@ -217,7 +250,7 @@ foreach ($task in $tasks) {
             jobOutput   = ($jobOutput | Out-String)
             success     = ($exitCode -eq 0) -and (Test-Path $csvOut)
         }
-    } -ArgumentList $exePath, $task.curve.threshold, $task.gain, $task.knee, $task.cvMax, $task.csvOut, $task.curve.name, $task.curve.weight
+    } -ArgumentList $exePath, $task.curve.threshold, $task.gain, $task.knee, $task.cvMax, $task.csvOut, $task.curve.name, $task.curve.weight, $TransferMinDbfs, $TransferMaxDbfs, $TransferStepDb, $transferMeasureSamples, $transferSettleMultiplier, $transferMinSettleSec, $transferSweepMode, $transferResetPerLevel
 
     $pending.Add([pscustomobject]@{ job = $job; task = $task })
 
@@ -471,6 +504,38 @@ $protocolSummary = [ordered]@{
 }
 $protocolSummary | ConvertTo-Json -Depth 6 | Set-Content $protocolSummaryPath
 Write-Host "Protocol summary saved to: $protocolSummaryPath" -ForegroundColor DarkGray
+
+# Generate mandatory protocol report + sensitivity matrix + identifiability gate.
+$analyzerPath = ".\scripts\analyze_calibration_sweep.py"
+if (Test-Path $analyzerPath) {
+    Write-Host "Generating extended protocol report artifacts..." -ForegroundColor Cyan
+    $analyzerArgs = @(
+        $analyzerPath,
+        "--output-root", $outputRoot,
+        "--checkpoint1-db", $Checkpoint1Db,
+        "--checkpoint2-db", $Checkpoint2Db,
+        "--mono-slack-db", $monoSlackDb,
+        "--tail-min-slope-db", $tailMinSlopeDb,
+        "--baseline-rel-min-cp1-db", $baselineRelMinCp1Db,
+        "--baseline-rel-min-cp2-db", $baselineRelMinCp2Db,
+        "--min-sep-35-to-20-cp1-db", $minSep35To20AtCheckpoint1Db,
+        "--min-sep-35-to-20-cp2-db", $minSep35To20AtCheckpoint2Db,
+        "--min-sep-cp1-db", $minSepAtCheckpoint1Db,
+        "--min-sep-cp2-db", $minSepAtCheckpoint2Db,
+        "--regularization-weight", $regularizationWeight
+    )
+    & python $analyzerArgs
+    $analyzerExitCode = $LASTEXITCODE
+    if ($analyzerExitCode -eq 3) {
+        Write-Error "Identifiability gate failed. Inspect protocol_report.json and sensitivity_matrix.json."
+        exit 3
+    } elseif ($analyzerExitCode -ne 0 -and $analyzerExitCode -ne 2) {
+        Write-Error "Analyzer failed with exit code $analyzerExitCode"
+        exit $analyzerExitCode
+    }
+} else {
+    Write-Warning "Analyzer script missing: $analyzerPath"
+}
 
 # Ask user to confirm and lock in
 Write-Host ""

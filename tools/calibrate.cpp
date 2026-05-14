@@ -36,7 +36,9 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -54,6 +56,12 @@ static float amplitudeToDbfs(float amp)
     if (amp <= 0.0f) return -144.0f;
     return 20.0f * std::log10(amp);
 }
+
+enum class TransferSweepMode {
+    Up,
+    Down,
+    Both
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Timing measurement
@@ -132,7 +140,15 @@ static void measureTransfer(std::ostream& out,
                              float         threshVoltage = 0.0f,
                              float         sidechainGain = 0.7f,
                              float         cvSoftKneeV   = 0.75f,
-                             float         cvMaxV        = 9.0f)
+                             float         cvMaxV        = 9.0f,
+                             float         minInputDbfs  = -60.0f,
+                             float         maxInputDbfs  = 6.0f,
+                             float         stepDb        = 3.0f,
+                             int           measureSamples = 1024,
+                             float         settleMultiplier = 10.0f,
+                             float         minSettleSec = 2.0f,
+                             bool          resetPerLevel = true,
+                             TransferSweepMode sweepMode = TransferSweepMode::Up)
 {
     using namespace Models;
     using namespace Models::Sidechain;
@@ -147,48 +163,80 @@ static void measureTransfer(std::ostream& out,
         << " sidechain_gain=" << sidechainGain
         << " cv_soft_knee_v=" << cvSoftKneeV
         << " cv_max_v=" << cvMaxV
+        << " transfer_min_dbfs=" << minInputDbfs
+        << " transfer_max_dbfs=" << maxInputDbfs
+        << " transfer_step_db=" << stepDb
+        << " transfer_measure_samples=" << measureSamples
+        << " transfer_settle_multiplier=" << settleMultiplier
+        << " transfer_min_settle_sec=" << minSettleSec
+        << " transfer_reset_per_level=" << (resetPerLevel ? 1 : 0)
         << " sample_rate=" << sampleRate << "\n";
-        out << "input_dbfs,output_dbfs,gain_reduction_db,cv_volts,"
+        out << "sweep_direction,input_dbfs,output_dbfs,gain_reduction_db,cv_volts,"
             "raw_cv_volts,effective_cv_volts,applied_cv_volts,stage_cv_volts,"
             "cv_clamp_ratio\n";
 
-    // Input levels from -60 dBFS to 0 dBFS.
-    const std::vector<float> levels = {
-        -60.0f, -48.0f, -40.0f, -36.0f, -30.0f, -24.0f,
-        -20.0f, -18.0f, -15.0f, -12.0f, -9.0f,  -6.0f,
-        -3.0f,  -1.5f,   0.0f
-    };
+    if (stepDb <= 0.0f) {
+        throw std::invalid_argument("transfer step must be positive");
+    }
+    if (measureSamples <= 0) {
+        throw std::invalid_argument("transfer measure sample count must be positive");
+    }
+    if (maxInputDbfs < minInputDbfs) {
+        std::swap(maxInputDbfs, minInputDbfs);
+    }
 
-    for (float dbfs : levels) {
-        const float amplitude = (dbfs <= -144.0f) ? 0.0f : dbfsToAmplitude(dbfs);
+    std::vector<float> levels;
+    for (float db = minInputDbfs; db <= maxInputDbfs + 1e-6f; db += stepDb) {
+        levels.push_back(db);
+    }
+    if (levels.empty()) {
+        levels.push_back(minInputDbfs);
+    }
+    if (std::abs(levels.back() - maxInputDbfs) > 1e-3f) {
+        levels.push_back(maxInputDbfs);
+    }
 
-        Fairchild670CoreConfig cfg;
-        cfg.linkMode = LinkMode::Independent;
-        cfg.timingPreset = pos;
-        cfg.sidechainAmplifierGain = sidechainGain;
-        cfg.sidechainCvSoftKneeV = cvSoftKneeV;
-        cfg.stageCfg.cvMaxV = cvMaxV;
+    Fairchild670CoreConfig cfg;
+    cfg.linkMode = LinkMode::Independent;
+    cfg.timingPreset = pos;
+    cfg.sidechainAmplifierGain = sidechainGain;
+    cfg.sidechainCvSoftKneeV = cvSoftKneeV;
+    cfg.stageCfg.cvMaxV = cvMaxV;
 
+    const double settleTimeSec = std::max(static_cast<double>(minSettleSec),
+                                          static_cast<double>(preset.releaseSec) * settleMultiplier);
+    const int settleN = std::max(1, static_cast<int>(settleTimeSec * sampleRate));
+
+    auto runSweep = [&](const std::vector<float>& sweepLevels, const char* sweepLabel) {
         Fairchild670Core core(cfg);
         core.prepare(sampleRate);
         core.setThresholdLeft(threshVoltage);
         core.setThresholdRight(threshVoltage);
 
-        // Settle for 10× the release time constant (or a minimum of 2 s).
-        const double settleTimeSec = std::max(2.0, preset.releaseSec * 10.0);
-        const int    settleN       = static_cast<int>(settleTimeSec * sampleRate);
-
-        float outL, outR;
+        float outL = 0.0f, outR = 0.0f;
         const float freqHz = 1000.0f;
-        for (int i = 0; i < settleN; ++i) {
-            const float in = amplitude * std::sin(
-                2.0f * static_cast<float>(M_PI) * freqHz
-                    * static_cast<float>(i) / static_cast<float>(sampleRate));
-            core.processStereo(in, in, outL, outR);
-        }
+        long long sampleOffset = 0;
 
-        // Measurement window: 1024 samples.
-        constexpr int kMeasureN = 1024;
+        for (float dbfs : sweepLevels) {
+            const float amplitude = (dbfs <= -144.0f) ? 0.0f : dbfsToAmplitude(dbfs);
+
+            if (resetPerLevel) {
+                core = Fairchild670Core(cfg);
+                core.prepare(sampleRate);
+                core.setThresholdLeft(threshVoltage);
+                core.setThresholdRight(threshVoltage);
+                sampleOffset = 0;
+            }
+
+            const long long settleStart = sampleOffset;
+            for (int i = 0; i < settleN; ++i) {
+                const float in = amplitude * std::sin(
+                    2.0f * static_cast<float>(M_PI) * freqHz
+                        * static_cast<float>(settleStart + i) / static_cast<float>(sampleRate));
+                core.processStereo(in, in, outL, outR);
+            }
+            sampleOffset += settleN;
+
         double sumInSq  = 0.0;
         double sumOutSq = 0.0;
         double sumFinalCv     = 0.0;
@@ -198,10 +246,11 @@ static void measureTransfer(std::ostream& out,
         double sumStageCv     = 0.0;
         double sumClamp       = 0.0;
 
-        for (int i = 0; i < kMeasureN; ++i) {
+            const long long measureStart = sampleOffset;
+        for (int i = 0; i < measureSamples; ++i) {
             const float in = amplitude * std::sin(
                 2.0f * static_cast<float>(M_PI) * freqHz
-                    * static_cast<float>(settleN + i)
+                    * static_cast<float>(measureStart + i)
                     / static_cast<float>(sampleRate));
             core.processStereo(in, in, outL, outR);
             sumInSq  += static_cast<double>(in)   * static_cast<double>(in);
@@ -214,21 +263,23 @@ static void measureTransfer(std::ostream& out,
             sumStageCv     += static_cast<double>(meters.stageCvL);
             sumClamp       += static_cast<double>(meters.cvClampedL);
         }
+            sampleOffset += measureSamples;
 
-        const float rmsIn  = static_cast<float>(std::sqrt(sumInSq  / kMeasureN));
-        const float rmsOut = static_cast<float>(std::sqrt(sumOutSq / kMeasureN));
+        const float rmsIn  = static_cast<float>(std::sqrt(sumInSq  / measureSamples));
+        const float rmsOut = static_cast<float>(std::sqrt(sumOutSq / measureSamples));
 
         const float inDbfs  = amplitudeToDbfs(rmsIn);
         const float outDbfs = amplitudeToDbfs(rmsOut);
         const float grDb    = inDbfs - outDbfs;
-        const float avgFinalCv = static_cast<float>(sumFinalCv / kMeasureN);
-        const float avgRawCv = static_cast<float>(sumRawCv / kMeasureN);
-        const float avgEffectiveCv = static_cast<float>(sumEffectiveCv / kMeasureN);
-        const float avgAppliedCv = static_cast<float>(sumAppliedCv / kMeasureN);
-        const float avgStageCv = static_cast<float>(sumStageCv / kMeasureN);
-        const float clampRatio = static_cast<float>(sumClamp / kMeasureN);
+        const float avgFinalCv = static_cast<float>(sumFinalCv / measureSamples);
+        const float avgRawCv = static_cast<float>(sumRawCv / measureSamples);
+        const float avgEffectiveCv = static_cast<float>(sumEffectiveCv / measureSamples);
+        const float avgAppliedCv = static_cast<float>(sumAppliedCv / measureSamples);
+        const float avgStageCv = static_cast<float>(sumStageCv / measureSamples);
+        const float clampRatio = static_cast<float>(sumClamp / measureSamples);
 
-        out << inDbfs << ","
+        out << sweepLabel << ","
+            << inDbfs << ","
             << outDbfs << ","
             << grDb << ","
             << avgFinalCv << ","
@@ -237,6 +288,15 @@ static void measureTransfer(std::ostream& out,
             << avgAppliedCv << ","
             << avgStageCv << ","
             << clampRatio << "\n";
+        }
+    };
+
+    if (sweepMode == TransferSweepMode::Up || sweepMode == TransferSweepMode::Both) {
+        runSweep(levels, "up");
+    }
+    if (sweepMode == TransferSweepMode::Down || sweepMode == TransferSweepMode::Both) {
+        std::vector<float> down(levels.rbegin(), levels.rend());
+        runSweep(down, "down");
     }
 }
 
@@ -261,6 +321,14 @@ static void printHelp(const char* progName)
         << "  --sidechain-gain <x> Sidechain CV gain scalar (default: 0.7).\n"
         << "  --cv-soft-knee <V>   Soft-knee width before CV ceiling clamp (default: 0.75).\n"
         << "  --cv-max <V>         Maximum stage CV ceiling (default: 9.0).\n"
+        << "  --transfer-min-dbfs <dB>   Lowest transfer input level (default: -60).\n"
+        << "  --transfer-max-dbfs <dB>   Highest transfer input level (default: +6).\n"
+        << "  --transfer-step-db <dB>    Transfer level step (default: 3).\n"
+        << "  --transfer-measure-samples <N>   RMS measurement window size (default: 1024).\n"
+        << "  --transfer-settle-multiplier <x> Settling window = x * release tau (default: 10).\n"
+        << "  --transfer-min-settle-sec <sec>  Minimum settle time per level (default: 2).\n"
+        << "  --transfer-reset-per-level  Re-initialise core at each level (legacy behavior).\n"
+        << "  --transfer-sweep-mode <up|down|both> Sweep direction(s) for path checks (default: up).\n"
         << "  --output <file>      Write output to file instead of stdout.\n"
         << "  --help               Show this help and exit.\n"
         << "\n"
@@ -281,6 +349,14 @@ int main(int argc, char* argv[])
     float       sidechainGain = 0.7f;
     float       cvSoftKneeV   = 0.75f;
     float       cvMaxV        = 9.0f;
+    float       transferMinDbfs = -60.0f;
+    float       transferMaxDbfs = 6.0f;
+    float       transferStepDb = 3.0f;
+    int         transferMeasureSamples = 1024;
+    float       transferSettleMultiplier = 10.0f;
+    float       transferMinSettleSec = 2.0f;
+    bool        transferResetPerLevel = false;
+    TransferSweepMode transferSweepMode = TransferSweepMode::Up;
     std::string outputFile;
 
     for (int i = 1; i < argc; ++i) {
@@ -305,6 +381,32 @@ int main(int argc, char* argv[])
             cvSoftKneeV = std::stof(argv[++i]);
         } else if (arg == "--cv-max" && i + 1 < argc) {
             cvMaxV = std::stof(argv[++i]);
+        } else if (arg == "--transfer-min-dbfs" && i + 1 < argc) {
+            transferMinDbfs = std::stof(argv[++i]);
+        } else if (arg == "--transfer-max-dbfs" && i + 1 < argc) {
+            transferMaxDbfs = std::stof(argv[++i]);
+        } else if (arg == "--transfer-step-db" && i + 1 < argc) {
+            transferStepDb = std::stof(argv[++i]);
+        } else if (arg == "--transfer-measure-samples" && i + 1 < argc) {
+            transferMeasureSamples = std::stoi(argv[++i]);
+        } else if (arg == "--transfer-settle-multiplier" && i + 1 < argc) {
+            transferSettleMultiplier = std::stof(argv[++i]);
+        } else if (arg == "--transfer-min-settle-sec" && i + 1 < argc) {
+            transferMinSettleSec = std::stof(argv[++i]);
+        } else if (arg == "--transfer-reset-per-level") {
+            transferResetPerLevel = true;
+        } else if (arg == "--transfer-sweep-mode" && i + 1 < argc) {
+            const std::string mode = argv[++i];
+            if (mode == "up") {
+                transferSweepMode = TransferSweepMode::Up;
+            } else if (mode == "down") {
+                transferSweepMode = TransferSweepMode::Down;
+            } else if (mode == "both") {
+                transferSweepMode = TransferSweepMode::Both;
+            } else {
+                std::cerr << "Error: --transfer-sweep-mode must be one of up|down|both.\n";
+                return 1;
+            }
         } else if (arg == "--output" && i + 1 < argc) {
             outputFile = argv[++i];
         } else {
@@ -345,6 +447,22 @@ int main(int argc, char* argv[])
         std::cerr << "Error: --cv-max must be positive.\n";
         return 1;
     }
+    if (transferStepDb <= 0.0f) {
+        std::cerr << "Error: --transfer-step-db must be positive.\n";
+        return 1;
+    }
+    if (transferMeasureSamples <= 0) {
+        std::cerr << "Error: --transfer-measure-samples must be positive.\n";
+        return 1;
+    }
+    if (transferSettleMultiplier <= 0.0f) {
+        std::cerr << "Error: --transfer-settle-multiplier must be positive.\n";
+        return 1;
+    }
+    if (transferMinSettleSec < 0.0f) {
+        std::cerr << "Error: --transfer-min-settle-sec must be non-negative.\n";
+        return 1;
+    }
 
     // Open output stream.
     std::ofstream fileStream;
@@ -372,7 +490,15 @@ int main(int argc, char* argv[])
                         thresholdV,
                         sidechainGain,
                         cvSoftKneeV,
-                        cvMaxV);
+                        cvMaxV,
+                        transferMinDbfs,
+                        transferMaxDbfs,
+                        transferStepDb,
+                        transferMeasureSamples,
+                        transferSettleMultiplier,
+                        transferMinSettleSec,
+                        transferResetPerLevel,
+                        transferSweepMode);
     }
 
     return 0;
