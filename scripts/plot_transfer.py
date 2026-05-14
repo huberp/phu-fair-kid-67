@@ -75,9 +75,9 @@ def load_transfer_csv(path: str, direction: str = "up") -> Tuple[List[dict], Dic
             try:
                 has_direction = parts[0] in ("up", "down")
                 offset = 1 if has_direction else 0
-                direction = parts[0] if has_direction else "up"
+                row_direction = parts[0] if has_direction else "up"
                 row = {
-                    "sweep_direction": direction,
+                    "sweep_direction": row_direction,
                     "input_dbfs": float(parts[offset + 0]),
                     "output_dbfs": float(parts[offset + 1]),
                     "gr_db": float(parts[offset + 2]),

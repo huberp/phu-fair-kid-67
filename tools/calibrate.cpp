@@ -215,6 +215,7 @@ static void measureTransfer(std::ostream& out,
 
         float outL = 0.0f, outR = 0.0f;
         const float freqHz = 1000.0f;
+        const double phaseInc = (2.0 * M_PI * static_cast<double>(freqHz)) / sampleRate;
         long long sampleOffset = 0;
 
         for (float dbfs : sweepLevels) {
@@ -229,13 +230,11 @@ static void measureTransfer(std::ostream& out,
             }
 
             const long long settleStart = sampleOffset;
+            double phase = phaseInc * static_cast<double>(settleStart);
             for (int i = 0; i < settleN; ++i) {
-                const double phase = (2.0 * M_PI * static_cast<double>(freqHz)
-                                      * static_cast<double>(settleStart + i))
-                                     / sampleRate;
-                const float in = amplitude * std::sin(
-                    static_cast<float>(phase));
+                const float in = amplitude * std::sin(static_cast<float>(phase));
                 core.processStereo(in, in, outL, outR);
+                phase += phaseInc;
             }
             sampleOffset += settleN;
 
@@ -249,12 +248,9 @@ static void measureTransfer(std::ostream& out,
         double sumClamp       = 0.0;
 
             const long long measureStart = sampleOffset;
+            phase = phaseInc * static_cast<double>(measureStart);
         for (int i = 0; i < measureSamples; ++i) {
-            const double phase = (2.0 * M_PI * static_cast<double>(freqHz)
-                                  * static_cast<double>(measureStart + i))
-                                 / sampleRate;
-            const float in = amplitude * std::sin(
-                static_cast<float>(phase));
+            const float in = amplitude * std::sin(static_cast<float>(phase));
             core.processStereo(in, in, outL, outR);
             sumInSq  += static_cast<double>(in)   * static_cast<double>(in);
             sumOutSq += static_cast<double>(outL)  * static_cast<double>(outL);
@@ -265,6 +261,7 @@ static void measureTransfer(std::ostream& out,
             sumAppliedCv   += static_cast<double>(meters.appliedCvL);
             sumStageCv     += static_cast<double>(meters.stageCvL);
             sumClamp       += static_cast<double>(meters.cvClampedL);
+            phase += phaseInc;
         }
             sampleOffset += measureSamples;
 
