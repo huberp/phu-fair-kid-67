@@ -91,9 +91,9 @@ def analyze_curve(rows, args):
     cp1 = nearest_row(rows, args.checkpoint1_db)
     cp2 = nearest_row(rows, args.checkpoint2_db)
 
-    clamp_mean = statistics.fmean([r["cv_clamp_ratio"] for r in rows]) if rows else 0.0
-    cv_applied_mean = statistics.fmean([r["applied_cv_volts"] for r in rows]) if rows else 0.0
-    cv_stage_mean = statistics.fmean([r["stage_cv_volts"] for r in rows]) if rows else 0.0
+    clamp_mean = statistics.fmean(r["cv_clamp_ratio"] for r in rows) if rows else 0.0
+    cv_applied_mean = statistics.fmean(r["applied_cv_volts"] for r in rows) if rows else 0.0
+    cv_stage_mean = statistics.fmean(r["stage_cv_volts"] for r in rows) if rows else 0.0
 
     return {
         "score": round(score, 4),

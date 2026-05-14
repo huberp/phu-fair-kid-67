@@ -230,9 +230,11 @@ static void measureTransfer(std::ostream& out,
 
             const long long settleStart = sampleOffset;
             for (int i = 0; i < settleN; ++i) {
+                const double phase = (2.0 * M_PI * static_cast<double>(freqHz)
+                                      * static_cast<double>(settleStart + i))
+                                     / sampleRate;
                 const float in = amplitude * std::sin(
-                    2.0f * static_cast<float>(M_PI) * freqHz
-                        * static_cast<float>(settleStart + i) / static_cast<float>(sampleRate));
+                    static_cast<float>(phase));
                 core.processStereo(in, in, outL, outR);
             }
             sampleOffset += settleN;
@@ -248,10 +250,11 @@ static void measureTransfer(std::ostream& out,
 
             const long long measureStart = sampleOffset;
         for (int i = 0; i < measureSamples; ++i) {
+            const double phase = (2.0 * M_PI * static_cast<double>(freqHz)
+                                  * static_cast<double>(measureStart + i))
+                                 / sampleRate;
             const float in = amplitude * std::sin(
-                2.0f * static_cast<float>(M_PI) * freqHz
-                    * static_cast<float>(measureStart + i)
-                    / static_cast<float>(sampleRate));
+                static_cast<float>(phase));
             core.processStereo(in, in, outL, outR);
             sumInSq  += static_cast<double>(in)   * static_cast<double>(in);
             sumOutSq += static_cast<double>(outL)  * static_cast<double>(outL);

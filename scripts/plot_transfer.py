@@ -30,8 +30,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("csv_files", nargs="+", help="One or more CSV files from phu_calibrate --measure-transfer")
     p.add_argument("--reference", "-r", default=None, help="Optional reference CSV for single-curve overlay")
     p.add_argument("--output", "-o", default=None, help="Output image path (PNG). If omitted, displays interactively.")
-    p.add_argument("--checkpoint", action="append", type=float, default=[-9.0, -6.0],
+    p.add_argument("--checkpoint", action="append", type=float, default=None,
                    help="Checkpoint dBFS for separation callouts (repeatable)")
+    p.add_argument("--direction", choices=["up", "down", "all"], default="up",
+                   help="Select which sweep direction rows to use from transfer CSVs")
     p.add_argument("--title", default="Fairchild 670 Transfer Calibration Dashboard")
     return p.parse_args()
 
@@ -50,7 +52,7 @@ def infer_label(path: str) -> str:
     return stem
 
 
-def load_transfer_csv(path: str) -> Tuple[List[dict], Dict[str, str]]:
+def load_transfer_csv(path: str, direction: str = "up") -> Tuple[List[dict], Dict[str, str]]:
     meta: Dict[str, str] = {}
     rows: List[dict] = []
     encoding = _detect_encoding(path)
@@ -89,7 +91,8 @@ def load_transfer_csv(path: str) -> Tuple[List[dict], Dict[str, str]]:
                 rows.append(row)
             except ValueError:
                 pass
-    rows = [r for r in rows if r["sweep_direction"] == "up"]
+    if direction in ("up", "down"):
+        rows = [r for r in rows if r["sweep_direction"] == direction]
     return rows, meta
 
 
@@ -116,7 +119,7 @@ def main() -> None:
 
     series = []
     for path in args.csv_files:
-        rows, meta = load_transfer_csv(path)
+        rows, meta = load_transfer_csv(path, args.direction)
         if not rows:
             print(f"No rows found in {path}", file=sys.stderr)
             continue
@@ -187,7 +190,8 @@ def main() -> None:
         y = [nearest_value(name_map["thresh0v0"]["rows"], x, "gr_db") - nearest_value(name_map["thresh2v0"]["rows"], x, "gr_db") for x in x_vals]
         ax_delta.plot(x_vals, y, "--", linewidth=1.5, label="(0.0 - 2.0) separation")
 
-    for cp in sorted(set(args.checkpoint)):
+    checkpoints = args.checkpoint if args.checkpoint is not None else [-9.0, -6.0]
+    for cp in sorted(set(checkpoints)):
         ax_delta.axvline(cp, color="gray", linestyle=":", linewidth=0.8)
     ax_delta.set_title("Family deltas / separation diagnostics")
     ax_delta.set_xlabel("Input (dBFS)")
@@ -216,7 +220,7 @@ def main() -> None:
 
     # Callouts
     callout_lines = []
-    for cp in sorted(set(args.checkpoint)):
+    for cp in sorted(set(checkpoints)):
         c35 = name_map.get("thresh3v5")
         c20 = name_map.get("thresh2v0")
         c00 = name_map.get("thresh0v0")
