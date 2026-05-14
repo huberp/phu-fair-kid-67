@@ -76,6 +76,9 @@ Example (custom thresholds):
 2. Review protocol artifacts
 - tmp/calibration_sweep/sweep_results.json
 - tmp/calibration_sweep/protocol_summary.json
+- tmp/calibration_sweep/protocol_report.json
+- tmp/calibration_sweep/sensitivity_matrix.json
+- tmp/calibration_sweep/protocol_report.md
 
 3. Lock only passing parameters
 - scripts/lock_and_regenerate.ps1 -SidechainGain <g> -CvSoftKnee <k> -CvMax <m>
@@ -98,8 +101,11 @@ Manual override is available with -SkipProtocolGate, but this should be used onl
 
 Any PR that updates transfer calibration or reference curves should include:
 - protocol_summary.json with at least one passing candidate
+- protocol_report.json (ordering/separation/monotonicity/tail/CV utilization summary)
+- sensitivity_matrix.json proving parameter influence is non-negligible
 - selected tuple and protocol score in PR description
 - regenerated CSV references and transfer-test pass evidence
+- multi-curve family plot and delta plot evidence (including checkpoint callouts)
 
 ## Notes
 

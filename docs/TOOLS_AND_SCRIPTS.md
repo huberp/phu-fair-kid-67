@@ -9,9 +9,10 @@ This document describes the standalone developer tools in `tools/` and the helpe
 1. [tools/calibrate.cpp — Offline Calibration Tool (`phu_calibrate`)](#1-toolscalibratecpp--offline-calibration-tool-phu_calibrate)
 2. [scripts/plot_timing.py — Attack/Release Step-Response Plotter](#2-scriptsplot_timingpy--attackrelease-step-response-plotter)
 3. [scripts/plot_transfer.py — Transfer-Curve Plotter](#3-scriptsplot_transferpy--transfer-curve-plotter)
-4. [scripts/install-linux-deps.sh — Linux Dependency Installer](#4-scriptsinstall-linux-depssh--linux-dependency-installer)
-5. [End-to-End Workflow Example](#5-end-to-end-workflow-example)
-6. [Further Reading](#6-further-reading)
+4. [scripts/analyze_calibration_sweep.py — Protocol Report + Sensitivity Analyzer](#4-scriptsanalyze_calibration_sweeppy--protocol-report--sensitivity-analyzer)
+5. [scripts/install-linux-deps.sh — Linux Dependency Installer](#5-scriptsinstall-linux-depssh--linux-dependency-installer)
+6. [End-to-End Workflow Example](#6-end-to-end-workflow-example)
+7. [Further Reading](#7-further-reading)
 
 ---
 
@@ -171,6 +172,23 @@ python3 scripts/plot_transfer.py <transfer_csv> \
     [--output <image.png>]
 ```
 
+For calibration-family diagnostics, pass all five generated CSVs at once:
+
+```bash
+python3 scripts/plot_transfer.py \
+    tests/transfer_curve_ref_thresh10v0.csv \
+    tests/transfer_curve_ref_thresh3v5.csv \
+    tests/transfer_curve_ref_thresh2v8.csv \
+    tests/transfer_curve_ref_thresh2v0.csv \
+    tests/transfer_curve_ref_thresh0v0.csv \
+    --output /tmp/transfer_family_dashboard.png
+```
+
+This dashboard includes:
+- multi-curve input/output and GR overlays
+- family delta traces and checkpoint separation callouts
+- CV pipeline traces (`raw -> effective -> applied -> stage`) plus clamp ratio
+
 ### Examples
 
 ```bash
@@ -201,7 +219,30 @@ The `note` column is ignored by the plotter but useful for documentation. Refere
 
 ---
 
-## 4. scripts/install-linux-deps.sh — Linux Dependency Installer
+## 4. scripts/analyze_calibration_sweep.py — Protocol Report + Sensitivity Analyzer
+
+### What it does
+
+Post-processes sweep outputs under `tmp/calibration_sweep/` and writes mandatory calibration artifacts:
+
+- `sweep_results.json` (ranked parameter sets)
+- `protocol_summary.json` (best candidate + thresholds + identifiability summary)
+- `protocol_report.json` (ordering/separation/monotonicity/tail/CV utilization diagnostics)
+- `sensitivity_matrix.json` (parameter influence table for identifiability checks)
+- `protocol_report.md` (human-readable summary)
+
+### Usage
+
+```bash
+python3 scripts/analyze_calibration_sweep.py --output-root tmp/calibration_sweep
+```
+
+The analyzer exits non-zero when no passing candidates exist, and returns a dedicated
+failure code if the identifiability gate fails (e.g., sweep dimensions are effectively inactive).
+
+---
+
+## 5. scripts/install-linux-deps.sh — Linux Dependency Installer
 
 ### What it does
 
@@ -234,7 +275,7 @@ cmake --build --preset linux-build
 
 ---
 
-## 5. End-to-End Workflow Example
+## 6. End-to-End Workflow Example
 
 The following example generates and inspects the timing and transfer characteristics for position 1 from scratch:
 
@@ -262,7 +303,7 @@ cd build && ctest --output-on-failure
 
 ---
 
-## 6. Further Reading
+## 7. Further Reading
 
 - **[docs/calibration-workflow.md](calibration-workflow.md)** — Detailed calibration workflow: measuring all six timing positions, recommended settings for reproducible results, adding new reference points, and recalibration guidance when DSP parameters change.
 - **[docs/BUILDING.md](BUILDING.md)** — Full build and test instructions including CMake presets, platform-specific requirements, and the complete unit-test suite.

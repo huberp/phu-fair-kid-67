@@ -28,6 +28,7 @@
 #   --parallelism N        Max concurrent calibration processes (default: 10)
 #   --mono-slack DB        Monotonicity slack in dB (default: 0.10)
 #   --tail-min-slope DB    Minimum allowed tail slope in dB (default: -0.25)
+#   --precision MODE       quick|confirm (default: quick)
 #   --help                 Show this help and exit
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,15 @@ MIN_SEP_35_TO_20_CP2_DB=0.20
 MIN_SEP_CP1_DB=0.50
 MIN_SEP_CP2_DB=0.50
 REGULARIZATION_WEIGHT=0.2
+TRANSFER_MIN_DBFS=-60.0
+TRANSFER_MAX_DBFS=6.0
+TRANSFER_STEP_DB=3.0
+TRANSFER_MEASURE_SAMPLES=1024
+TRANSFER_SETTLE_MULT=10
+TRANSFER_MIN_SETTLE_SEC=2.0
+TRANSFER_SWEEP_MODE=up
+TRANSFER_RESET_PER_LEVEL=0
+PRECISION_MODE=quick
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 usage() {
@@ -64,6 +74,10 @@ Options:
   --parallelism N        Max concurrent calibration processes (default: 10)
   --mono-slack DB        Monotonicity slack in dB (default: 0.10)
   --tail-min-slope DB    Minimum allowed tail slope in dB (default: -0.25)
+  --precision MODE       quick|confirm (default: quick)
+  --transfer-min-dbfs DB Minimum transfer input dBFS (default: -60)
+  --transfer-max-dbfs DB Maximum transfer input dBFS (default: +6)
+  --transfer-step-db DB  Transfer step in dB (default: 3)
   --help                 Show this help and exit
 HELP
     exit 0
@@ -77,6 +91,10 @@ while [[ $# -gt 0 ]]; do
         --parallelism)    TASK_PARALLELISM="$2"; shift 2 ;;
         --mono-slack)     MONO_SLACK_DB="$2";   shift 2 ;;
         --tail-min-slope) TAIL_MIN_SLOPE_DB="$2"; shift 2 ;;
+        --precision)      PRECISION_MODE="$2"; shift 2 ;;
+        --transfer-min-dbfs) TRANSFER_MIN_DBFS="$2"; shift 2 ;;
+        --transfer-max-dbfs) TRANSFER_MAX_DBFS="$2"; shift 2 ;;
+        --transfer-step-db) TRANSFER_STEP_DB="$2"; shift 2 ;;
         --help|-h)        usage ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
     esac
@@ -99,6 +117,33 @@ if ! command -v python3 &>/dev/null; then
     echo "Error: python3 is required for the analysis phase." >&2
     exit 1
 fi
+
+ANALYZER="scripts/analyze_calibration_sweep.py"
+if [[ ! -f "$ANALYZER" ]]; then
+    echo "Error: analyzer script not found at $ANALYZER" >&2
+    exit 1
+fi
+
+case "$PRECISION_MODE" in
+    quick)
+        TRANSFER_MEASURE_SAMPLES=1024
+        TRANSFER_SETTLE_MULT=10
+        TRANSFER_MIN_SETTLE_SEC=2.0
+        TRANSFER_SWEEP_MODE=up
+        TRANSFER_RESET_PER_LEVEL=0
+        ;;
+    confirm)
+        TRANSFER_MEASURE_SAMPLES=4096
+        TRANSFER_SETTLE_MULT=20
+        TRANSFER_MIN_SETTLE_SEC=4.0
+        TRANSFER_SWEEP_MODE=both
+        TRANSFER_RESET_PER_LEVEL=0
+        ;;
+    *)
+        echo "Error: --precision must be quick or confirm" >&2
+        exit 1
+        ;;
+esac
 
 # ── Parameter grids ───────────────────────────────────────────────────────────
 if [[ $QUICK -eq 1 ]]; then
@@ -129,6 +174,10 @@ echo "  Gain values:      [${GAIN_VALUES[*]}]"
 echo "  Knee values:      [${KNEE_VALUES[*]}]"
 echo "  CV Max values:    [${CVMAX_VALUES[*]}]"
 echo "  Curves:           [${CURVE_NAMES[*]}]"
+echo "  Precision mode:   $PRECISION_MODE"
+echo "  Transfer range:   [$TRANSFER_MIN_DBFS, $TRANSFER_MAX_DBFS] step $TRANSFER_STEP_DB dB"
+echo "  Sweep mode:       $TRANSFER_SWEEP_MODE"
+echo "  Measure samples:  $TRANSFER_MEASURE_SAMPLES"
 echo ""
 
 # ── Build flat task list (parallel arrays, no word-splitting issues) ──────────
@@ -173,6 +222,10 @@ for (( idx=0; idx<TOTAL; idx++ )); do
     curve_name="${TASK_CURVE_NAMES[$idx]}"
     threshold="${TASK_THRESHOLDS[$idx]}"
     csv_out="${TASK_CSV_OUTS[$idx]}"
+    reset_arg=()
+    if [[ $TRANSFER_RESET_PER_LEVEL -eq 1 ]]; then
+        reset_arg=(--transfer-reset-per-level)
+    fi
 
     pct=$(( 100 * (idx + 1) / TOTAL ))
     echo "[$pct%] Queue ($((idx+1))/$TOTAL): $curve_name gain=$gain knee=$knee cvMax=$cvMax"
@@ -183,6 +236,14 @@ for (( idx=0; idx<TOTAL; idx++ )); do
             --sidechain-gain "$gain" \
             --cv-soft-knee   "$knee" \
             --cv-max         "$cvMax" \
+            --transfer-min-dbfs "$TRANSFER_MIN_DBFS" \
+            --transfer-max-dbfs "$TRANSFER_MAX_DBFS" \
+            --transfer-step-db "$TRANSFER_STEP_DB" \
+            --transfer-measure-samples "$TRANSFER_MEASURE_SAMPLES" \
+            --transfer-settle-multiplier "$TRANSFER_SETTLE_MULT" \
+            --transfer-min-settle-sec "$TRANSFER_MIN_SETTLE_SEC" \
+            --transfer-sweep-mode "$TRANSFER_SWEEP_MODE" \
+            "${reset_arg[@]}" \
             --output         "$csv_out" 2>&1 \
         || echo "WARN: phu_calibrate failed for $curve_name gain=$gain knee=$knee cvMax=$cvMax" >&2
     ) &
@@ -203,278 +264,16 @@ echo ""
 echo "All tasks finished. Running analysis..."
 echo ""
 
-# ── Analysis (Python) ─────────────────────────────────────────────────────────
-# Export protocol thresholds so the Python heredoc can read them via os.environ.
-export PHU_MONO_SLACK_DB="$MONO_SLACK_DB"
-export PHU_TAIL_MIN_SLOPE_DB="$TAIL_MIN_SLOPE_DB"
-export PHU_CHECKPOINT1_DB="$CHECKPOINT1_DB"
-export PHU_CHECKPOINT2_DB="$CHECKPOINT2_DB"
-export PHU_BASELINE_REL_MIN_CP1_DB="$BASELINE_REL_MIN_CP1_DB"
-export PHU_BASELINE_REL_MIN_CP2_DB="$BASELINE_REL_MIN_CP2_DB"
-export PHU_MIN_SEP_35_TO_20_CP1_DB="$MIN_SEP_35_TO_20_CP1_DB"
-export PHU_MIN_SEP_35_TO_20_CP2_DB="$MIN_SEP_35_TO_20_CP2_DB"
-export PHU_MIN_SEP_CP1_DB="$MIN_SEP_CP1_DB"
-export PHU_MIN_SEP_CP2_DB="$MIN_SEP_CP2_DB"
-export PHU_REGULARIZATION_WEIGHT="$REGULARIZATION_WEIGHT"
-export PHU_OUTPUT_ROOT="$OUTPUT_ROOT"
-
-python3 << 'PYEOF'
-import csv
-import json
-import math
-import os
-import sys
-from datetime import datetime, timezone
-
-# ── Read protocol parameters from environment ──────────────────────────────────
-def ef(name):  # read float env var
-    return float(os.environ[name])
-
-MONO_SLACK_DB            = ef("PHU_MONO_SLACK_DB")
-TAIL_MIN_SLOPE_DB        = ef("PHU_TAIL_MIN_SLOPE_DB")
-CHECKPOINT1_DB           = ef("PHU_CHECKPOINT1_DB")
-CHECKPOINT2_DB           = ef("PHU_CHECKPOINT2_DB")
-BASELINE_REL_MIN_CP1_DB  = ef("PHU_BASELINE_REL_MIN_CP1_DB")
-BASELINE_REL_MIN_CP2_DB  = ef("PHU_BASELINE_REL_MIN_CP2_DB")
-MIN_SEP_35_TO_20_CP1_DB  = ef("PHU_MIN_SEP_35_TO_20_CP1_DB")
-MIN_SEP_35_TO_20_CP2_DB  = ef("PHU_MIN_SEP_35_TO_20_CP2_DB")
-MIN_SEP_CP1_DB           = ef("PHU_MIN_SEP_CP1_DB")
-MIN_SEP_CP2_DB           = ef("PHU_MIN_SEP_CP2_DB")
-REGULARIZATION_WEIGHT    = ef("PHU_REGULARIZATION_WEIGHT")
-OUTPUT_ROOT              = os.environ["PHU_OUTPUT_ROOT"]
-
-BASELINE_GAIN  = 0.7
-BASELINE_KNEE  = 0.75
-BASELINE_CVMAX = 9.0
-
-CURVES = [
-    {"name": "thresh10v0", "weight": 1.0},
-    {"name": "thresh3v5",  "weight": 1.0},
-    {"name": "thresh2v8",  "weight": 1.0},
-    {"name": "thresh2v0",  "weight": 1.5},
-    {"name": "thresh0v0",  "weight": 2.0},
-]
-
-# ── Helpers ────────────────────────────────────────────────────────────────────
-
-def load_csv(path):
-    try:
-        with open(path, newline="") as f:
-            lines = [l for l in f if not l.startswith("#") and l.strip()]
-        return list(csv.DictReader(lines))
-    except OSError as exc:
-        print(f"  WARNING: cannot read {path}: {exc}", file=sys.stderr)
-        return []
-
-
-def nearest_row(rows, target_db):
-    return min(rows, key=lambda r: abs(float(r["input_dbfs"]) - target_db))
-
-
-# ── Parse result directories ───────────────────────────────────────────────────
-
-results = []
-param_set_scores = {}
-
-for entry in sorted(os.scandir(OUTPUT_ROOT), key=lambda e: e.name):
-    if not entry.is_dir():
-        continue
-    parts = entry.name.split("_")
-    # Expected format: gain_X_knee_Y_cvMax_Z
-    if len(parts) != 6 or parts[0] != "gain" or parts[2] != "knee" or parts[4] != "cvMax":
-        continue
-    try:
-        gain  = float(parts[1])
-        knee  = float(parts[3])
-        cvmax = float(parts[5])
-    except ValueError:
-        continue
-
-    for curve in CURVES:
-        csv_path = os.path.join(entry.path, curve["name"] + ".csv")
-        if not os.path.exists(csv_path):
-            print(f"  WARNING: missing {csv_path}", file=sys.stderr)
-            continue
-
-        rows = load_csv(csv_path)
-        if len(rows) < 5:
-            print(f"  WARNING: insufficient rows in {csv_path}", file=sys.stderr)
-            continue
-
-        all_outputs = [float(r["output_dbfs"]) for r in rows]
-        all_cv      = [float(r["cv_volts"])     for r in rows]
-
-        # Find the first point where CV > 0 (knee onset).
-        knee_index = next((k for k, cv in enumerate(all_cv) if cv > 0.0), 0)
-
-        raw_deltas = [
-            all_outputs[i] - all_outputs[i - 1]
-            for i in range(max(1, knee_index), len(all_outputs))
-        ]
-        mono_violations = sum(1 for d in raw_deltas if d < -MONO_SLACK_DB)
-
-        last_outputs      = [float(r["output_dbfs"]) for r in rows[-4:]]
-        tail_deltas       = [last_outputs[i] - last_outputs[i-1] for i in range(1, len(last_outputs))]
-        abs_deltas        = [abs(d) for d in tail_deltas]
-        tail_min_delta    = min(tail_deltas) if tail_deltas else 0.0
-        score             = sum(abs_deltas)
-
-        row_cp1 = nearest_row(rows, CHECKPOINT1_DB)
-        row_cp2 = nearest_row(rows, CHECKPOINT2_DB)
-        gr_cp1  = float(row_cp1["gain_reduction_db"])
-        gr_cp2  = float(row_cp2["gain_reduction_db"])
-
-        results.append({
-            "gain": gain, "knee": knee, "cvMax": cvmax,
-            "curveName": curve["name"], "curveWeight": curve["weight"],
-            "score": round(score, 4),
-            "monoViolations": mono_violations,
-            "tailMinDelta": round(tail_min_delta, 4),
-            "tailDownturn": tail_min_delta < TAIL_MIN_SLOPE_DB,
-            "grAtCheckpoint1": round(gr_cp1, 4),
-            "grAtCheckpoint2": round(gr_cp2, 4),
-            "csvPath": csv_path,
-        })
-
-        key = f"{gain}_{knee}_{cvmax}"
-        if key not in param_set_scores:
-            param_set_scores[key] = {
-                "gain": gain, "knee": knee, "cvMax": cvmax,
-                "totalScore": 0.0, "weightedScore": 0.0,
-                "perCurveScores": {}, "perCurveTailMin": {},
-                "perCurveMonoViolations": {}, "perCurveGrAtCheckpoint1": {},
-                "perCurveGrAtCheckpoint2": {},
-                "hardFailures": [], "hardPass": True, "protocolScore": 0.0,
-            }
-        ps = param_set_scores[key]
-        ps["perCurveScores"][curve["name"]]           = round(score, 4)
-        ps["perCurveTailMin"][curve["name"]]          = round(tail_min_delta, 4)
-        ps["perCurveMonoViolations"][curve["name"]]   = mono_violations
-        ps["perCurveGrAtCheckpoint1"][curve["name"]]  = round(gr_cp1, 4)
-        ps["perCurveGrAtCheckpoint2"][curve["name"]]  = round(gr_cp2, 4)
-        ps["totalScore"]    += score
-        ps["weightedScore"] += score * curve["weight"]
-
-# ── Apply hard protocol constraints and compute protocol score ─────────────────
-
-for ps in param_set_scores.values():
-    failures = []
-    for curve in CURVES:
-        n = curve["name"]
-        if n not in ps["perCurveMonoViolations"]:
-            failures.append(f"missing_curve_{n}")
-            continue
-        if ps["perCurveMonoViolations"][n] > 0:
-            failures.append(f"mono_{n}")
-        if ps["perCurveTailMin"][n] < TAIL_MIN_SLOPE_DB:
-            failures.append(f"tail_{n}")
-
-    base_cp1    = ps["perCurveGrAtCheckpoint1"].get("thresh10v0", 0.0)
-    base_cp2    = ps["perCurveGrAtCheckpoint2"].get("thresh10v0", 0.0)
-    rel3v5_cp1  = ps["perCurveGrAtCheckpoint1"].get("thresh3v5",  0.0) - base_cp1
-    rel2v8_cp1  = ps["perCurveGrAtCheckpoint1"].get("thresh2v8",  0.0) - base_cp1
-    rel2v0_cp1  = ps["perCurveGrAtCheckpoint1"].get("thresh2v0",  0.0) - base_cp1
-    rel0v0_cp1  = ps["perCurveGrAtCheckpoint1"].get("thresh0v0",  0.0) - base_cp1
-    rel3v5_cp2  = ps["perCurveGrAtCheckpoint2"].get("thresh3v5",  0.0) - base_cp2
-    rel2v8_cp2  = ps["perCurveGrAtCheckpoint2"].get("thresh2v8",  0.0) - base_cp2
-    rel2v0_cp2  = ps["perCurveGrAtCheckpoint2"].get("thresh2v0",  0.0) - base_cp2
-    rel0v0_cp2  = ps["perCurveGrAtCheckpoint2"].get("thresh0v0",  0.0) - base_cp2
-
-    if rel3v5_cp1 < BASELINE_REL_MIN_CP1_DB:                   failures.append("baseline_rel_cp1")
-    if rel3v5_cp2 < BASELINE_REL_MIN_CP2_DB:                   failures.append("baseline_rel_cp2")
-    if (rel2v0_cp1 - rel3v5_cp1) < MIN_SEP_35_TO_20_CP1_DB:   failures.append("sep_cp1_thresh3v5_thresh2v0")
-    if (rel0v0_cp1 - rel2v0_cp1) < MIN_SEP_CP1_DB:            failures.append("sep_cp1_thresh2v0_thresh0v0")
-    if (rel2v0_cp2 - rel3v5_cp2) < MIN_SEP_35_TO_20_CP2_DB:   failures.append("sep_cp2_thresh3v5_thresh2v0")
-    if (rel0v0_cp2 - rel2v0_cp2) < MIN_SEP_CP2_DB:            failures.append("sep_cp2_thresh2v0_thresh0v0")
-
-    ps["hardFailures"] = list(set(failures))
-    ps["hardPass"]     = len(ps["hardFailures"]) == 0
-
-    reg = (abs(ps["gain"]  - BASELINE_GAIN) +
-           abs(ps["knee"]  - BASELINE_KNEE) +
-           abs(ps["cvMax"] - BASELINE_CVMAX) / 2.0)
-    mid_cp1     = (rel3v5_cp1 + rel2v0_cp1) / 2.0
-    mid_cp2     = (rel3v5_cp2 + rel2v0_cp2) / 2.0
-    mid_penalty = abs(rel2v8_cp1 - mid_cp1) + abs(rel2v8_cp2 - mid_cp2)
-    ps["protocolScore"] = round(
-        ps["weightedScore"] + REGULARIZATION_WEIGHT * reg + 0.25 * mid_penalty, 6)
-
-# ── Rank and report ────────────────────────────────────────────────────────────
-
-ranked  = sorted(param_set_scores.values(),
-                 key=lambda x: (0 if x["hardPass"] else 1, x["protocolScore"]))
-passing = [r for r in ranked if r["hardPass"]]
-
-print("Top 10 Parameter Sets (protocol-ranked)")
-print()
-print(f"{'Rank':>4} | {'Gain':>5} | {'Knee':>5} | {'CvMax':>5} | "
-      f"{'Pass':>4} | {'ProtoScore':>10} | {'Weighted':>8} | {'Total':>6} | FailCount")
-print("-" * 100)
-for i, r in enumerate(ranked[:10]):
-    pass_text = "yes" if r["hardPass"] else "no"
-    print(f"{i+1:>4} | {r['gain']:>5.1f} | {r['knee']:>5.2f} | {r['cvMax']:>5.1f} | "
-          f"{pass_text:>4} | {r['protocolScore']:>10.4f} | "
-          f"{r['weightedScore']:>8.4f} | {r['totalScore']:>6.3f} | "
-          f"{len(r['hardFailures']):>9}")
-
-print()
-best = passing[0] if passing else None
-if best:
-    print("RECOMMENDATION")
-    print("-" * 80)
-    print(f"Best passing configuration (protocol score = {best['protocolScore']:.4f}):")
-    print()
-    print(f"  sidechainAmplifierGain = {best['gain']}")
-    print(f"  sidechainCvSoftKneeV   = {best['knee']}")
-    print(f"  cvMaxV                 = {best['cvMax']}")
-    print()
-    print("Per-curve dip scores:")
-    for curve in CURVES:
-        score = best["perCurveScores"].get(curve["name"], "N/A")
-        print(f"  {curve['name']}: {score} (weight={curve['weight']})")
-else:
-    print("No candidate passed hard protocol constraints.", file=sys.stderr)
-print()
-
-# ── Save JSON outputs ──────────────────────────────────────────────────────────
-
-summary_path = os.path.join(OUTPUT_ROOT, "sweep_results.json")
-with open(summary_path, "w") as f:
-    json.dump(ranked, f, indent=2)
-print(f"Full results saved to: {summary_path}")
-
-protocol_summary = {
-    "generatedAt": datetime.now(timezone.utc).isoformat(),
-    "thresholds": {
-        "checkpoint1Db":             CHECKPOINT1_DB,
-        "checkpoint2Db":             CHECKPOINT2_DB,
-        "monoSlackDb":               MONO_SLACK_DB,
-        "tailMinSlopeDb":            TAIL_MIN_SLOPE_DB,
-        "baselineRelMinCp1Db":       BASELINE_REL_MIN_CP1_DB,
-        "baselineRelMinCp2Db":       BASELINE_REL_MIN_CP2_DB,
-        "minSep35To20AtCheckpoint1Db": MIN_SEP_35_TO_20_CP1_DB,
-        "minSep35To20AtCheckpoint2Db": MIN_SEP_35_TO_20_CP2_DB,
-        "minSepAtCheckpoint1Db":     MIN_SEP_CP1_DB,
-        "minSepAtCheckpoint2Db":     MIN_SEP_CP2_DB,
-    },
-    "passingCount": len(passing),
-    "bestPassing": (
-        {"gain": best["gain"], "knee": best["knee"],
-         "cvMax": best["cvMax"], "protocolScore": best["protocolScore"]}
-        if best else None
-    ),
-    "passingCandidates": [
-        {"gain": r["gain"], "knee": r["knee"], "cvMax": r["cvMax"],
-         "protocolScore": r["protocolScore"],
-         "weightedScore": r["weightedScore"],
-         "totalScore":    r["totalScore"]}
-        for r in passing
-    ],
-}
-protocol_path = os.path.join(OUTPUT_ROOT, "protocol_summary.json")
-with open(protocol_path, "w") as f:
-    json.dump(protocol_summary, f, indent=2)
-print(f"Protocol summary saved to: {protocol_path}")
-
-sys.exit(0 if passing else 2)
-PYEOF
+python3 "$ANALYZER" \
+    --output-root "$OUTPUT_ROOT" \
+    --checkpoint1-db "$CHECKPOINT1_DB" \
+    --checkpoint2-db "$CHECKPOINT2_DB" \
+    --mono-slack-db "$MONO_SLACK_DB" \
+    --tail-min-slope-db "$TAIL_MIN_SLOPE_DB" \
+    --baseline-rel-min-cp1-db "$BASELINE_REL_MIN_CP1_DB" \
+    --baseline-rel-min-cp2-db "$BASELINE_REL_MIN_CP2_DB" \
+    --min-sep-35-to-20-cp1-db "$MIN_SEP_35_TO_20_CP1_DB" \
+    --min-sep-35-to-20-cp2-db "$MIN_SEP_35_TO_20_CP2_DB" \
+    --min-sep-cp1-db "$MIN_SEP_CP1_DB" \
+    --min-sep-cp2-db "$MIN_SEP_CP2_DB" \
+    --regularization-weight "$REGULARIZATION_WEIGHT"

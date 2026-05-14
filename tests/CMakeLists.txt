@@ -118,6 +118,14 @@ target_compile_features(phu_transfer_curve_tests PRIVATE cxx_std_17)
 target_compile_definitions(phu_transfer_curve_tests PRIVATE _USE_MATH_DEFINES)
 target_link_libraries(phu_transfer_curve_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
 
+add_executable(phu_transfer_family_conformance_tests
+    TransferFamilyConformanceTests.cpp
+)
+target_include_directories(phu_transfer_family_conformance_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
+target_compile_features(phu_transfer_family_conformance_tests PRIVATE cxx_std_17)
+target_compile_definitions(phu_transfer_family_conformance_tests PRIVATE _USE_MATH_DEFINES)
+target_link_libraries(phu_transfer_family_conformance_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
+
 include(Catch)
 catch_discover_tests(phu_dsp_tests)
 catch_discover_tests(phu_circuit_tests)
@@ -134,4 +142,4 @@ catch_discover_tests(phu_transformer_linear_tests)
 catch_discover_tests(phu_transformer_coupling_tests)
 catch_discover_tests(phu_timing_conformance_tests)
 catch_discover_tests(phu_transfer_curve_tests)
-
+catch_discover_tests(phu_transfer_family_conformance_tests)
