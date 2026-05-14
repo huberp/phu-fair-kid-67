@@ -99,7 +99,11 @@ else()
     endif()
 endif()
 
-# Build DSP tests whenever PhuAnalogLib is available (no JUCE dependency).
+# Build DSP tests and calibration tool whenever PhuAnalogLib is available (no JUCE dependency).
+# When PHU_BUILD_PLUGIN is ON, tools/ is already added inside that branch above.
 if(TARGET PhuAnalogLib)
     add_subdirectory(tests)
+    if(NOT PHU_BUILD_PLUGIN)
+        add_subdirectory(tools)
+    endif()
 endif()

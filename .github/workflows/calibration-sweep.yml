@@ -1,0 +1,109 @@
+name: Calibration Sweep
+
+# Run on manual trigger or when called from another workflow.
+# The sweep builds phu_calibrate (DSP-only, no JUCE) and runs it across
+# the full gain × knee × cvMax × threshold-curve matrix.
+# All CSV result files and JSON summaries are uploaded as an artifact
+# for offline review and plotting with scripts/plot_transfer.py.
+
+on:
+  workflow_dispatch:
+    inputs:
+      quick:
+        description: "Quick mode (smaller parameter grid, faster CI)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      parallelism:
+        description: "Maximum concurrent calibration tasks"
+        required: false
+        default: "10"
+  workflow_call:
+    inputs:
+      quick:
+        description: "Quick mode"
+        required: false
+        default: "true"
+        type: string
+      parallelism:
+        description: "Maximum concurrent calibration tasks"
+        required: false
+        default: "10"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  calibration-sweep:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake (DSP + tools only, no JUCE)
+        run: |
+          cmake -B build/dsp \
+            -DPHU_BUILD_PLUGIN=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build phu_calibrate
+        run: cmake --build build/dsp --target phu_calibrate
+
+      - name: Run calibration sweep
+        run: |
+          SWEEP_ARGS=(
+            --build-dir  build/dsp/tools
+            --output-dir calibration-sweep-results
+            --parallelism "${{ inputs.parallelism }}"
+          )
+          if [[ "${{ inputs.quick }}" == "true" ]]; then
+            SWEEP_ARGS+=(--quick)
+          fi
+          bash scripts/sweep_global_calibration.sh "${SWEEP_ARGS[@]}"
+        # Exit code 2 means no passing candidate (not a hard failure in CI);
+        # we want the artifact to be uploaded regardless.
+        continue-on-error: true
+
+      - name: Upload sweep results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: calibration-sweep-results-${{ github.run_number }}
+          path: calibration-sweep-results/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Write job summary
+        if: always()
+        run: |
+          SUMMARY_FILE="calibration-sweep-results/protocol_summary.json"
+          echo "## Calibration Sweep Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "$SUMMARY_FILE" ]]; then
+            PASSING=$(python3 - "$SUMMARY_FILE" << 'PYEOF'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    print(d.get("passingCount", 0))
+except Exception as exc:
+    print(f"error: {exc}", file=sys.stderr)
+    print("?")
+PYEOF
+)
+            echo "Passing candidates: **$PASSING**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No summary file produced (sweep may have failed)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Full CSV results and sweep_results.json are in the \`calibration-sweep-results-${{ github.run_number }}\` artifact." >> "$GITHUB_STEP_SUMMARY"
