@@ -186,7 +186,8 @@ static void measureTransfer(std::ostream& out,
     }
 
     std::vector<float> levels;
-    for (float db = minInputDbfs; db <= maxInputDbfs + 1e-6f; db += stepDb) {
+    const float endpointEps = std::max(1.0e-4f, std::abs(stepDb) * 0.25f);
+    for (float db = minInputDbfs; db <= maxInputDbfs + endpointEps; db += stepDb) {
         levels.push_back(db);
     }
     if (levels.empty()) {
@@ -216,7 +217,7 @@ static void measureTransfer(std::ostream& out,
         float outL = 0.0f, outR = 0.0f;
         const float freqHz = 1000.0f;
         const double phaseInc = (2.0 * M_PI * static_cast<double>(freqHz)) / sampleRate;
-        long long sampleOffset = 0;
+        double phase = 0.0;
 
         for (float dbfs : sweepLevels) {
             const float amplitude = (dbfs <= -144.0f) ? 0.0f : dbfsToAmplitude(dbfs);
@@ -226,17 +227,14 @@ static void measureTransfer(std::ostream& out,
                 core.prepare(sampleRate);
                 core.setThresholdLeft(threshVoltage);
                 core.setThresholdRight(threshVoltage);
-                sampleOffset = 0;
+                phase = 0.0;
             }
 
-            const long long settleStart = sampleOffset;
-            double phase = phaseInc * static_cast<double>(settleStart);
             for (int i = 0; i < settleN; ++i) {
                 const float in = amplitude * std::sin(static_cast<float>(phase));
                 core.processStereo(in, in, outL, outR);
                 phase += phaseInc;
             }
-            sampleOffset += settleN;
 
         double sumInSq  = 0.0;
         double sumOutSq = 0.0;
@@ -247,8 +245,6 @@ static void measureTransfer(std::ostream& out,
         double sumStageCv     = 0.0;
         double sumClamp       = 0.0;
 
-            const long long measureStart = sampleOffset;
-            phase = phaseInc * static_cast<double>(measureStart);
         for (int i = 0; i < measureSamples; ++i) {
             const float in = amplitude * std::sin(static_cast<float>(phase));
             core.processStereo(in, in, outL, outR);
@@ -263,7 +259,6 @@ static void measureTransfer(std::ostream& out,
             sumClamp       += static_cast<double>(meters.cvClampedL);
             phase += phaseInc;
         }
-            sampleOffset += measureSamples;
 
         const float rmsIn  = static_cast<float>(std::sqrt(sumInSq  / measureSamples));
         const float rmsOut = static_cast<float>(std::sqrt(sumOutSq / measureSamples));

@@ -234,7 +234,7 @@ def main() -> None:
     clamp_max = max(clamp) if clamp else 0.0
     callout_lines.append(f"{cv_focus['label']} max clamp ratio = {clamp_max:.3f}")
     if clamp_max < 0.01:
-        callout_lines.append("⚠ cvMax likely inactive in measured range")
+        callout_lines.append("WARNING: cvMax likely inactive in measured range")
 
     fig.text(0.02, 0.01, "\n".join(callout_lines), fontsize=9)
     fig.suptitle(args.title, fontsize=14)
