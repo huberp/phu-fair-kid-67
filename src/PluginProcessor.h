@@ -47,6 +47,8 @@ class PhuFairKid67AudioProcessor : public juce::AudioProcessor {
     static constexpr const char* kParamTimingPosition    = "timingPosition";
     static constexpr const char* kParamThresholdLeft     = "thresholdLeft";
     static constexpr const char* kParamThresholdRight    = "thresholdRight";
+    static constexpr const char* kParamDcBiasLeft        = "dcBiasLeft";
+    static constexpr const char* kParamDcBiasRight       = "dcBiasRight";
     static constexpr const char* kParamCathodeBypassUf   = "cathodeBypassUf";
     static constexpr const char* kParamStereoMode        = "stereoMode";
     static constexpr const char* kParamSoloLeft          = "soloLeft";

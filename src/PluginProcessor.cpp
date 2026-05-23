@@ -68,6 +68,19 @@ PhuFairKid67AudioProcessor::createParameterLayout() {
         juce::ParameterID{kParamThresholdRight, 1}, "Threshold Right",
         juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f), 5.0f));
 
+    // DC sidechain bias per channel (0 = no added CV, 10 V = maximum push).
+    // Corresponds to the physical "DC Threshold" trim pot on the hardware.
+    // Default 0 = no DC bias (matches hardware CW position with pot fully CCW).
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamDcBiasLeft, 1}, "DC Bias Left",
+        juce::NormalisableRange<float>(0.0f, 10.0f, 0.01f), 0.0f,
+        juce::AudioParameterFloatAttributes{}.withLabel("V")));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{kParamDcBiasRight, 1}, "DC Bias Right",
+        juce::NormalisableRange<float>(0.0f, 10.0f, 0.01f), 0.0f,
+        juce::AudioParameterFloatAttributes{}.withLabel("V")));
+
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{kParamCathodeBypassUf, 1}, "Ck",
         juce::NormalisableRange<float>(0.0f, 47.0f, 0.1f), 4.7f,
@@ -267,6 +280,10 @@ void PhuFairKid67AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             apvts.getRawParameterValue(kParamCathodeBypassUf)->load();
         oversamplingChain_.core().setThresholdLeft(10.0f - thresholdLeft);
         oversamplingChain_.core().setThresholdRight(10.0f - thresholdRight);
+        oversamplingChain_.core().setDcBiasLeft(
+            apvts.getRawParameterValue(kParamDcBiasLeft)->load());
+        oversamplingChain_.core().setDcBiasRight(
+            apvts.getRawParameterValue(kParamDcBiasRight)->load());
         oversamplingChain_.core().setCathodeBypassCapacitance(
             static_cast<double>(cathodeBypassUf) * 1.0e-6);
     }

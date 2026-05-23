@@ -150,8 +150,9 @@ of bandwidth limiting via coupling capacitors.
 | Aspect | Status | Notes |
 |--------|--------|-------|
 | Pre-amplifier stage (P7) | **approximate** | `VariableMuStage` with 12AU7 Koren params; CV=0 always (fixed gain, harmonic coloration only) |
+| Sidechain amplifier chain (P8) | **approximate** | 3-stage cascade: 12AX7 × 2 → 12BH7, each `VariableMuStage` at CV=0; nonlinear saturation limits detector drive at high input levels; exact operating point not verified against hardware |
 | Output amplifier | **not implemented** | No separate output-amp stage yet; output transformer follows directly |
-| Tube types (12AX7, 12AU7, etc.) | **approximate** | 12AU7 Koren parameters used for pre-amp; exact hardware tube complement not verified |
+| Tube types (12AX7, 12AU7, 12BH7) | **approximate** | 12AU7 for pre-amp, 12AX7 × 2 + 12BH7 for sidechain chain; Koren fits from Nizhegorodov data; exact hardware tube complement not verified |
 
 ---
 

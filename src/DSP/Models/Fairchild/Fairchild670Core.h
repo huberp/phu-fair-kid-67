@@ -76,6 +76,7 @@ enum class ProcessingQuality {
 ///   P5  Interstage transformer (interstageTransformerCfg)
 ///   P6  Second-order output transformer with biquad filters (transformerCfg)
 ///   P7  Pre-amplifier tube stage coloration (preampCfg)
+///   P8  Sidechain amplifier tube chain (sidechainStage1Cfg – sidechainStage3Cfg)
 struct Fairchild670CoreConfig {
     /// Stereo link mode.
     LinkMode linkMode = LinkMode::Linked;
@@ -100,17 +101,13 @@ struct Fairchild670CoreConfig {
     /// in volts is below this value.  Set to 0.0 for an ideal rectifier.
     float tubeRectifierForwardVoltageV = 0.8f;
 
-    /// Sidechain amplifier gain — scales the 6AL5 detector output before it
-    /// is applied to the 6386 control grids.
+    /// Final gain scalar applied to the [P8] sidechain amplifier chain output
+    /// before the 6AL5 detector.  Calibrates the chain’s output level so that
+    /// detector drive and rectified CV sit in the range expected by the AC/DC
+    /// threshold controls.  The three-stage tube chain (P8) provides soft
+    /// saturation at high drive levels; this scalar trims the linear-region
+    /// gain independently of that saturation characteristic.
     ///
-    /// In the hardware Fairchild 670 the sidechain signal is amplified by a
-    /// dedicated tube chain (12AX7 → 12BH7 → 6973 → output transformer T104)
-    /// before reaching the 6AL5 detector.  The detector then drives the 6386
-    /// grids through only a 30 Ω timing resistor (R107/R108) and a 33 Ω stopper
-    /// (R111) — no amplifying divider network exists in that path.
-    ///
-    /// This scalar therefore represents the net level difference introduced by
-    /// the sidechain amplifier chain that is not otherwise modelled in software.
     /// Default is calibrated against the current transfer-curve references.
     float sidechainAmplifierGain = 0.7f;
 
@@ -138,7 +135,15 @@ struct Fairchild670CoreConfig {
     /// Defaults to a 12AU7 triode operating at the same B+ and load as the main stage.
     /// This stage always operates at CV=0 (no compression) and adds harmonic coloration.
     Analog::Models::VariableMuStageConfig preampCfg = makePreampCfg();
-
+    /// [P8] Sidechain amplifier chain configurations.
+    /// Three stages model the hardware sidechain amplifier path (T103 → 12AX7 × 2 →
+    /// 12BH7 × 2 → 6973 × 2 → T104) as a 12AX7 + 12AX7 + 12BH7 cascade.
+    /// Each stage runs at CV=0 (fixed gain); the cascade’s nonlinear saturation
+    /// limits detector drive at high input levels, reproducing the soft-onset
+    /// behaviour of the real hardware amplifier chain.
+    Analog::Models::VariableMuStageConfig sidechainStage1Cfg = makeSidechainStage12AX7Cfg();
+    Analog::Models::VariableMuStageConfig sidechainStage2Cfg = makeSidechainStage12AX7Cfg();
+    Analog::Models::VariableMuStageConfig sidechainStage3Cfg = makeSidechainStage12BH7Cfg();
     // ── Default-config factories ───────────────────────────────────────────────
     // (Used by the member default initialisers above; public so callers can
     //  build a known-good config as a starting point for customisation.)
@@ -183,6 +188,22 @@ struct Fairchild670CoreConfig {
         cfg.tube = Analog::Nonlinear::TubeParams::tubeParams12AU7();
         return cfg;
     }
+
+    /// Build a default 12AX7 sidechain amplifier stage config.
+    static Analog::Models::VariableMuStageConfig makeSidechainStage12AX7Cfg()
+    {
+        Analog::Models::VariableMuStageConfig cfg;
+        cfg.tube = Analog::Nonlinear::TubeParams::tubeParams12AX7();
+        return cfg;
+    }
+
+    /// Build a default 12BH7 sidechain amplifier driver stage config.
+    static Analog::Models::VariableMuStageConfig makeSidechainStage12BH7Cfg()
+    {
+        Analog::Models::VariableMuStageConfig cfg;
+        cfg.tube = Analog::Nonlinear::TubeParams::tubeParams12BH7();
+        return cfg;
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -192,7 +213,8 @@ struct Fairchild670CoreConfig {
 /// Signal flow per stereo sample (hardware-accurate ordering):
 ///   1. Input → input transformer (bandwidth shaping + LF saturation).
 ///   2. Pre-amplifier tube stage (harmonic coloration, CV=0).
-///   3. Sidechain detector reads the pre-amplifier output.
+///   3. [P8] Sidechain path: 12AX7 × 2 → 12BH7 amplifier chain (CV=0) →
+///      gain scalar → 6AL5 soft-rectifier detector → AC/DC threshold logic.
 ///   4. Envelope link logic → per-channel control voltage.
 ///   5. Push-pull variable-mu stage (6386 remote-cutoff model, even-harmonic
 ///      cancellation via differential combination).
@@ -306,6 +328,14 @@ private:
     // [P6] Output transformer — 2nd-order biquad model.
     TransformerSecondOrder            transformerL_;
     TransformerSecondOrder            transformerR_;
+
+    // [P8] Sidechain amplifier chain (12AX7 × 2 → 12BH7; CV=0 always).
+    Analog::Models::VariableMuStage   scAmp1L_;
+    Analog::Models::VariableMuStage   scAmp1R_;
+    Analog::Models::VariableMuStage   scAmp2L_;
+    Analog::Models::VariableMuStage   scAmp2R_;
+    Analog::Models::VariableMuStage   scAmp3L_;
+    Analog::Models::VariableMuStage   scAmp3R_;
 
     // [P4] Sidechain soft-onset rectifiers (6AL5 forward-voltage model).
     Sidechain::SoftRectifierDetector  detectorL_;

@@ -49,6 +49,12 @@ Fairchild670Core::Fairchild670Core(Fairchild670CoreConfig cfg) noexcept
     , interstageTransformerR_(cfg_.interstageTransformerCfg)
     , transformerL_(cfg_.transformerCfg)
     , transformerR_(cfg_.transformerCfg)
+    , scAmp1L_(cfg_.sidechainStage1Cfg)
+    , scAmp1R_(cfg_.sidechainStage1Cfg)
+    , scAmp2L_(cfg_.sidechainStage2Cfg)
+    , scAmp2R_(cfg_.sidechainStage2Cfg)
+    , scAmp3L_(cfg_.sidechainStage3Cfg)
+    , scAmp3R_(cfg_.sidechainStage3Cfg)
     , detectorL_(Sidechain::toDetectorConfig(cfg_.timingPreset),
                  cfg_.tubeRectifierForwardVoltageV)
     , detectorR_(Sidechain::toDetectorConfig(cfg_.timingPreset),
@@ -72,6 +78,12 @@ void Fairchild670Core::prepare(double sampleRate) noexcept
     transformerR_.prepare(sampleRate);
     detectorL_.prepare(sampleRate);
     detectorR_.prepare(sampleRate);
+    scAmp1L_.prepare(sampleRate);
+    scAmp1R_.prepare(sampleRate);
+    scAmp2L_.prepare(sampleRate);
+    scAmp2R_.prepare(sampleRate);
+    scAmp3L_.prepare(sampleRate);
+    scAmp3R_.prepare(sampleRate);
     resetPeakMeters();
 }
 
@@ -89,6 +101,12 @@ void Fairchild670Core::reset() noexcept
     transformerR_.reset();
     detectorL_.reset();
     detectorR_.reset();
+    scAmp1L_.reset();
+    scAmp1R_.reset();
+    scAmp2L_.reset();
+    scAmp2R_.reset();
+    scAmp3L_.reset();
+    scAmp3R_.reset();
     resetPeakMeters();
     meters_.cvL = 0.0f;
     meters_.cvR = 0.0f;
@@ -108,6 +126,16 @@ void Fairchild670Core::setQuality(ProcessingQuality quality) noexcept
     nrPreamp.maxIterations = nr.maxIterations;
     preampL_.setNRConfig(nrPreamp);
     preampR_.setNRConfig(nrPreamp);
+
+    // Apply to the sidechain amplifier chain.
+    Analog::Nonlinear::NRConfig nrSc = cfg_.sidechainStage1Cfg.nr;
+    nrSc.maxIterations = nr.maxIterations;
+    scAmp1L_.setNRConfig(nrSc);
+    scAmp1R_.setNRConfig(nrSc);
+    scAmp2L_.setNRConfig(nrSc);
+    scAmp2R_.setNRConfig(nrSc);
+    scAmp3L_.setNRConfig(nrSc);
+    scAmp3R_.setNRConfig(nrSc);
 }
 
 void Fairchild670Core::setCathodeBypassCapacitance(double farads) noexcept
@@ -155,15 +183,22 @@ void Fairchild670Core::processStereo(float inL, float inR,
     const float preampOutL = preampL_.processSample(xfmrInL);
     const float preampOutR = preampR_.processSample(xfmrInR);
 
-    // 3. [P4] Sidechain detectors tap directly from the input-transformer output,
-    //    matching the hardware topology where the sidechain feeds from the same
-    //    point as the signal path (before the pre-amplifier tube stage).  Using
-    //    the pre-amplifier output here was incorrect: the pre-amp clamps its grid
-    //    to ±inputClampV, which compresses the detector drive and makes the
-    //    threshold control almost ineffective.  The 6AL5 forward-voltage dead
-    //    zone is handled inside the SoftRectifierDetector.
-    const float rawCvL = detectorL_.processSample(xfmrInL);
-    const float rawCvR = detectorR_.processSample(xfmrInR);
+    // 3. [P8] Sidechain amplifier chain (T103 → 12AX7 × 2 → 12BH7 → 6AL5 detector).
+    //    The three-stage cascade (12AX7 + 12AX7 + 12BH7) models the hardware
+    //    sidechain amplifier path; each stage runs at CV=0 (fixed gain).
+    //    The cascade saturates at high drive levels, limiting detector input and
+    //    reproducing the soft-onset behaviour of the real hardware chain.
+    //    sidechainAmplifierGain trims the linear-region output before the 6AL5.
+    const float scChain1L = scAmp1L_.processSample(xfmrInL);
+    const float scChain1R = scAmp1R_.processSample(xfmrInR);
+    const float scChain2L = scAmp2L_.processSample(scChain1L);
+    const float scChain2R = scAmp2R_.processSample(scChain1R);
+    const float scChain3L = scAmp3L_.processSample(scChain2L);
+    const float scChain3R = scAmp3R_.processSample(scChain2R);
+    const float scDetInL = scChain3L * cfg_.sidechainAmplifierGain;
+    const float scDetInR = scChain3R * cfg_.sidechainAmplifierGain;
+    const float rawCvL = detectorL_.processSample(scDetInL);
+    const float rawCvR = detectorR_.processSample(scDetInR);
 
     // 3b. Compose AC/DC threshold contributions before link logic.
     // AC threshold gates programme-dependent detector CV. DC bias adds a fixed
@@ -198,13 +233,12 @@ void Fairchild670Core::processStereo(float inL, float inR,
     }
 
     // 5. [P2] Apply CV to both push-pull variable-mu stages.
-    //    Scale by cfg_.sidechainAmplifierGain to account for the level added by
-    //    the hardware sidechain tube chain (12AX7 → 12BH7 → 6973 → T104) which
-    //    is not otherwise modelled.  In hardware the 6AL5 output connects to the
-    //    6386 grids through only R107/R108 (30 Ω) and R111 (33 Ω stopper).
-    //    The stage's own cvMaxV clamp limits the maximum applied bias.
-    const float appliedCvL = finalCvL * cfg_.sidechainAmplifierGain;
-    const float appliedCvR = finalCvR * cfg_.sidechainAmplifierGain;
+    //    sidechainAmplifierGain is applied pre-detection (step 3 above).
+    //    In hardware the 6AL5 output connects to the 6386 grids through only
+    //    R107/R108 (30 Ω) and R111 (33 Ω stopper); no amplifying divider exists
+    //    in that path.  The stage's own cvMaxV clamp limits the maximum applied bias.
+    const float appliedCvL = finalCvL;
+    const float appliedCvR = finalCvR;
     const float cvMax = static_cast<float>(cfg_.stageCfg.cvMaxV);
     const float shapedCvL = softLimitCv(appliedCvL, cvMax, cfg_.sidechainCvSoftKneeV);
     const float shapedCvR = softLimitCv(appliedCvR, cvMax, cfg_.sidechainCvSoftKneeV);

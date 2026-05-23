@@ -129,24 +129,26 @@ dual-slope shape.
 
 ```bash
 python3 scripts/plot_transfer.py /tmp/p1_transfer.csv
-# With manual-derived reference overlay:
+# Save to PNG:
 python3 scripts/plot_transfer.py /tmp/p1_transfer.csv \
-    --reference calibration/reference/transfer_curve_reference.csv \
     --output /tmp/p1_transfer.png
 
-# Calibration dashboard across all five threshold references:
+# Overlay all 5 Fairchild manual reference curves (dBm, hand-digitized):
 python3 scripts/plot_transfer.py \
-    calibration/reference/transfer_curve_ref_thresh10v0.csv \
-    calibration/reference/transfer_curve_ref_thresh3v5.csv \
-    calibration/reference/transfer_curve_ref_thresh2v8.csv \
-    calibration/reference/transfer_curve_ref_thresh2v0.csv \
-    calibration/reference/transfer_curve_ref_thresh0v0.csv \
-    --output /tmp/transfer_family_dashboard.png
+    calibration/reference/Transfere-Curve-1.csv \
+    calibration/reference/Transfere-Curve-2.csv \
+    calibration/reference/Transfere-Curve-3.csv \
+    calibration/reference/Transfere-Curve-4.csv \
+    calibration/reference/Transfere-Curve-5.csv \
+    --output calibration/plots/curve_1_5_transfer.png
 ```
 
-The plot shows:
-- **Left panel**: input dBFS vs output dBFS (unity gain diagonal for reference).
-- **Right panel**: gain reduction (dB) vs input dBFS.
+> Reference CSVs are in **dBm** (European semicolon/decimal-comma format).
+> Level conversion: `dBm = dBFS + 19.2`.
+> The plot script auto-detects the format and sets axes accordingly.
+
+For a quantitative comparison of a plugin sweep against a single reference curve,
+use `calibration/scripts/compare_to_reference.py` instead (see [Calibration-Plan.md](../calibration/Calibration-Plan.md)).
 
 ---
 
@@ -155,10 +157,20 @@ The plot shows:
 | Setting | Value | Reason |
 |---------|-------|--------|
 | Sample rate | 44100 Hz | Matches default plugin rate; all reference values are at this rate |
-| Threshold | 0 V | Measures the full compressor curve from silence upwards |
+| Threshold AC | curve-specific | See `calibration/Calibration-Plan.md` for per-curve estimates |
+| Threshold DC | curve-specific | Use `--threshold-dc 0.0` as baseline (Curve-1 linear check) |
 | Position | 1 (for transfer) | Fastest settling; good for curve shape validation |
 | Position | 5 or 6 (for auto-release) | Exercises programme-dependent behaviour |
 | `--sample-rate` | 8000 for quick checks | Reduces settling time; not suitable for HF accuracy |
+| `--transfer-min-dbfs` | -35 | Matches calibration sweep range (≈ -15.8 dBm) |
+| `--transfer-max-dbfs` | -5  | Top of sweep range (≈ +14.2 dBm) |
+| `--transfer-step-db` | 0.5 | 61-point sweep balancing speed and resolution |
+
+For a full batch run across all 5 reference curves, use:
+
+```powershell
+pwsh -File calibration/scripts/run_curve_family.ps1
+```
 
 ---
 

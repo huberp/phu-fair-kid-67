@@ -12,6 +12,7 @@ Default behavior is now calibration-dashboard oriented:
 import argparse
 import os
 import sys
+import re
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -46,6 +47,9 @@ def _detect_encoding(path: str) -> str:
 
 def infer_label(path: str) -> str:
     stem = Path(path).stem
+    m = re.match(r"(?i)curve[-_ ]?(\d+)$", stem)
+    if m:
+        return f"Curve-{m.group(1)}"
     for k in DEFAULT_LABEL_ORDER:
         if k in stem:
             return k
@@ -93,6 +97,49 @@ def load_transfer_csv(path: str, direction: str = "up") -> Tuple[List[dict], Dic
                 pass
     if direction in ("up", "down"):
         rows = [r for r in rows if r["sweep_direction"] == direction]
+
+    if rows:
+        return rows, meta
+
+    # Fallback for hand-digitized Fairchild manual references:
+    # lines like "-9,294...; -9,946..." (semicolon-separated, decimal commas).
+    with open(path, newline="", encoding=encoding) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ";" not in line:
+                continue
+
+            parts = [p.strip() for p in line.split(";")]
+            if len(parts) < 2:
+                continue
+
+            try:
+                input_dbfs = float(parts[0].replace(",", "."))
+                output_dbfs = float(parts[1].replace(",", "."))
+            except ValueError:
+                continue
+
+            rows.append({
+                "sweep_direction": "up",
+                "input_dbfs": input_dbfs,
+                "output_dbfs": output_dbfs,
+                "gr_db": input_dbfs - output_dbfs,
+                "cv_volts": 0.0,
+                "raw_cv_volts": 0.0,
+                "effective_cv_volts": 0.0,
+                "applied_cv_volts": 0.0,
+                "stage_cv_volts": 0.0,
+                "cv_clamp_ratio": 0.0,
+            })
+
+    if rows:
+        meta["format"] = "xy_reference"
+
+    if direction in ("up", "down"):
+        rows = [r for r in rows if r["sweep_direction"] == direction]
+
     return rows, meta
 
 
@@ -145,9 +192,15 @@ def main() -> None:
         all_vals += in_vals + out_vals
         ax_transfer.plot(in_vals, out_vals, marker="o", linewidth=1.3, markersize=3, label=s["label"])
 
-    min_v = min(all_vals) - 2
-    max_v = max(all_vals) + 2
+    all_xy_reference = all(s["meta"].get("format") == "xy_reference" for s in series)
+    if all_xy_reference:
+        min_v, max_v = -10.0, 25.0
+    else:
+        min_v = min(all_vals) - 2
+        max_v = max(all_vals) + 2
     ax_transfer.plot([min_v, max_v], [min_v, max_v], "--", color="gray", linewidth=0.9, label="Unity gain")
+    ax_transfer.set_xlim(min_v, max_v)
+    ax_transfer.set_ylim(min_v, max_v)
     ax_transfer.set_title("Input vs Output (all curves)")
     ax_transfer.set_xlabel("Input (dBFS)")
     ax_transfer.set_ylabel("Output (dBFS)")
@@ -197,7 +250,9 @@ def main() -> None:
     ax_delta.set_xlabel("Input (dBFS)")
     ax_delta.set_ylabel("ΔGR (dB)")
     ax_delta.grid(True, alpha=0.3)
-    ax_delta.legend(fontsize=8)
+    delta_handles, delta_labels = ax_delta.get_legend_handles_labels()
+    if delta_handles:
+        ax_delta.legend(fontsize=8)
 
     # Panel 4: CV pipeline for strongest curve if present, else first
     cv_focus = name_map.get("thresh0v0", series[0])

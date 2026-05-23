@@ -94,14 +94,7 @@ Operational controls (front-panel use) are conceptually separate from these inte
 **Behaviour:** The circuit acts as a pure fixed-gain amplifier. The 6386 tubes idle at their quiescent operating point without any modulation of the control grid bias. The output rises exactly 1 dB per 1 dB of input (unit slope), offset by the net fixed gain of the signal chain (input transformer + 12AU7 pre-amplifier + 6386 + output transformer), which measures approximately **+9 dB** on this unit.
 
 **Shape:** Perfectly straight, slope = 1.
-
-| DBM IN | DBM OUT | Approx. GR vs. ① |
-|--------|---------|------------------|
-| −10    | −1      | 0 dB             |
-| −5     | +4      | 0 dB             |
-|  0     | +9      | 0 dB             |
-| +5     | +14     | 0 dB             |
-| +10    | +19     | 0 dB             |
+Refer to file ./calibration/reference/Transfer-Curve-1.csv
 
 ---
 
@@ -111,18 +104,8 @@ Operational controls (front-panel use) are conceptually separate from these inte
 
 **Behaviour:** The DC bias alone shifts the 6386's quiescent operating point, resulting in a constant offset of several dB of gain reduction even at low levels. The AC sidechain adds only a mild programme-dependent component on top. The curve follows the straight amplifier closely at low levels, then gently bends toward an asymptote of roughly **+12.5 dBm** at high inputs.
 
-**Peak gain reduction vs. ①:** ≈ 16 dB at +25 dBm in.
-
-| DBM IN | DBM OUT | Approx. GR vs. ① |
-|--------|---------|------------------|
-| −5     | +4      |  0 dB            |
-|  0     | +9      |  0 dB            |
-| +5     | +12     |  2 dB            |
-| +10    | +13     |  6 dB            |
-| +15    | +13     |  11 dB           |
-| +20    | +13     |  16 dB           |
-| +25    | +12.5   |  16.5 dB         |
-| +30    | +12     |  18 dB           |
+**Shape**
+Refer to file ./calibration/reference/Transfer-Curve-2.csv
 
 ---
 
@@ -132,16 +115,8 @@ Operational controls (front-panel use) are conceptually separate from these inte
 
 **Behaviour:** The factory setting balances AC and DC threshold controls to provide moderate to heavy programme compression across the full input range. Gain reduction starts as soon as any programme material drives the rectifier, deepens rapidly above the knee (around 0 dBm), and approaches a limiting plateau near **+5 to +6 dBm** output at maximum input. This represents approximately **23–24 dB of gain reduction** at +30 dBm in, referenced to the straight amplifier.
 
-| DBM IN | DBM OUT | Approx. GR vs. ① |
-|--------|---------|------------------|
-| −5     | +2      |  2 dB            |
-|  0     | +5      |  4 dB            |
-| +5     | +7      |  7 dB            |
-| +10    | +7.5    |  11.5 dB         |
-| +15    | +7      |  17 dB           |
-| +20    | +6      |  23 dB           |
-| +25    | +5.5    |  23.5 dB         |
-| +30    | +5      |  24 dB           |
+** Shape **
+Refer to file ./calibration/reference/Transfer-Curve-3.csv
 
 ---
 
@@ -151,16 +126,8 @@ Operational controls (front-panel use) are conceptually separate from these inte
 
 **Behaviour:** Both AC and DC components contribute near-maximum gain reduction. Even moderate input levels produce close to the ceiling gain reduction that the tube topology supports. The output barely rises above **0 dBm** regardless of how hard the input is driven. This represents **≥ 29 dB of gain reduction** at +30 dBm in.
 
-| DBM IN | DBM OUT | Approx. GR vs. ① |
-|--------|---------|------------------|
-|  0     | +2      |  7 dB            |
-| +5     | +1      |  13 dB           |
-| +10    | 0       |  19 dB           |
-| +15    | 0       |  24 dB           |
-| +20    | 0       |  29 dB           |
-| +25    | −0.5    |  29.5 dB         |
-| +30    | −1      |  30 dB           |
-
+** Shape **
+Refer to file ./calibration/reference/Transfer-Curve-4.csv
 ---
 
 ### Curve ⑤ — Heavy AC Compression, Minimal DC Bias
@@ -169,36 +136,12 @@ Operational controls (front-panel use) are conceptually separate from these inte
 
 **Behaviour:** Maximum AC threshold sensitivity means the rectifier drives the grids hard with any programme above the noise floor. However, with almost no DC bias, the compression starts only once the programme level builds sufficient control voltage; there is no constant-gain-reduction floor. The result is a curve that sits **between ② and ③** — heavier than ② at moderate inputs, but with a higher output ceiling than ③ because the DC floor is absent.
 
-| DBM IN | DBM OUT | Approx. GR vs. ① |
-|--------|---------|------------------|
-| −5     | +3      |  1 dB            |
-|  0     | +7      |  2 dB            |
-| +5     | +9      |  5 dB            |
-| +10    | +10     |  9 dB            |
-| +15    | +10.5   |  13.5 dB         |
-| +20    | +10     |  19 dB           |
-| +25    | +9.5    |  19.5 dB         |
-| +30    | +9      |  21 dB           |
+** Shape **
+Refer to file ./calibration/reference/Transfer-Curve-5.csv
 
 ---
 
-## 4. Gain Reduction Summary (all five curves)
-
-The following table shows the GR for each curve **relative to the straight amplifier (①)** at selected input levels.  Values are read from the graph and rounded to the nearest 0.5 dB.
-
-| DBM IN | ① (GR) | ② (GR) | ⑤ (GR) | ③ (GR) | ④ (GR) |
-|--------|--------|--------|--------|--------|--------|
-|  0     | 0      | 0      |  2     |  4     |  7     |
-| +5     | 0      | 2      |  5     |  7     | 13     |
-| +10    | 0      | 6      |  9     | 11.5   | 19     |
-| +15    | 0      | 11     | 13.5   | 17     | 24     |
-| +20    | 0      | 16     | 19     | 23     | 29     |
-| +25    | 0      | 16.5   | 19.5   | 23.5   | 29.5   |
-| +30    | 0      | 18     | 21     | 24     | 30     |
-
----
-
-## 5. dBm ↔ dBFS Conversion for the Simulation
+## 4. dBm ↔ dBFS Conversion for the Simulation
 
 The plug-in operates with normalised audio samples where **±1.0 = 0 dBFS**.  Internally, the sidechain and tube-model voltage scaling treats ±1.0 as ±10 V peak (see `USER_GUIDE.md`, "Sidechain Detector" section: *"scaled from normalised audio to volts (±1 full-scale = ±10 V)"*).
 
@@ -240,7 +183,7 @@ The plug-in applies **unity small-signal gain** normalisation at CV = 0 (see `fa
 
 ---
 
-## 6. Plug-in Settings to Reproduce Each Reference Curve
+## 5. Plug-in Settings to Reproduce Each Reference Curve
 
 The hardware has independent AC THRESHOLD and DC THRESHOLD calibration controls. The plug-in model
 uses operational threshold controls plus internal AC/DC calibration parameters to approximate this behavior.
@@ -286,11 +229,11 @@ The table below should be read as a practical approximation baseline, not an exa
 
 ---
 
-## 7. Testing with the Calibration Tool (Offline, No DAW)
+## 6. Testing with the Calibration Tool (Offline, No DAW)
 
 The standalone `phu_calibrate` tool (see `docs/calibration-workflow.md`) sweeps a 1 kHz sine tone across input levels and measures steady-state transfer — the same method used to generate the manual curves.
 
-### 7.1 Build
+### 6.1 Build
 
 ```bash
 cmake -B build -DPHU_BUILD_PLUGIN=OFF
@@ -298,7 +241,7 @@ cmake --build build
 # binary: ./build/tools/phu_calibrate
 ```
 
-### 7.2 Measure transfer for each reference curve
+### 6.2 Measure transfer for each reference curve
 
 Run the tool with AC/DC sidechain tuple values that approximate each hardware setting:
 
@@ -324,7 +267,7 @@ Run the tool with AC/DC sidechain tuple values that approximate each hardware se
     --output /tmp/curve4_transfer.csv
 ```
 
-### 7.3 Plot and overlay
+### 6.3 Plot and overlay
 
 The calibration tool outputs dBFS.  To overlay against the hardware dBm curves, add +19.2 to the `input_dbfs` and `output_dbfs` columns and then shift the output by +9 dB (gain normalisation correction):
 
@@ -361,7 +304,7 @@ ax.legend(); ax.grid(True); plt.show()
 EOF
 ```
 
-### 7.4 Existing ctest integration
+### 6.4 Existing ctest integration
 
 The automated tests in `TransferCurveTests.cpp` already run these measurements as part of `ctest`:
 
@@ -371,7 +314,7 @@ cd build && ctest -R TransferCurve --output-on-failure
 
 ---
 
-## 8. Testing with the Plug-in in a DAW
+## 7. Testing with the Plug-in in a DAW
 
 For a live comparison inside a DAW host:
 
@@ -390,9 +333,9 @@ For a live comparison inside a DAW host:
 
 ---
 
-## 9. Code Changes Needed to Register the Hardware Reference Data
+## 8. Code Changes Needed to Register the Hardware Reference Data
 
-### 9.1 Update `tests/transfer_curve_reference.csv`
+### 8.1 Update `tests/transfer_curve_reference.csv`
 
 Add digitised hardware reference rows for the factory curve (③) and the no-compression curve (①).  The format required by `TransferCurveTests.cpp` is:
 
@@ -413,7 +356,7 @@ Hardware data converted to dBFS (using dBFS = dBm − 19.2) and GR referenced to
  -0.8,-22.2,23.0,factory_+20dBm
 ```
 
-### 9.2 Update `tests/TransferCurveTests.cpp`
+### 8.2 Update `tests/TransferCurveTests.cpp`
 
 #### a) Add hardware-digitised reference arrays
 
@@ -517,7 +460,7 @@ to:
 //       replaced with kFactoryReference and the tolerance tightened to ±2 dB.
 ```
 
-### 9.3 DSP parameter tuning guidance
+### 8.3 DSP parameter tuning guidance
 
 If `TransferCurveTests` fails after adding the hardware-digitised reference points, the following parameters are most likely to need adjustment.  Adjust **one at a time**, re-run `phu_calibrate --measure-transfer --threshold-ac 5.0 --threshold-dc 1.0` after each change, and compare against the §3 factory-condition table:
 
@@ -533,12 +476,12 @@ When matching the **maximum-compression curve (④)**, note that the plug-in may
 - Raising `cvMaxV` to 10–12 V for the max-compression scenario, or
 - Exposing `sidechainAmplifierGain` as a user-facing "Sidechain Drive" parameter (future feature).
 
-### 9.4 Update `docs/fairchild670-spec-traceability.md`
+### 8.4 Update `docs/fairchild670-spec-traceability.md`
 
 In section 8 ("Input-vs-output transfer curves"), change the status from *not yet digitised* to *approximate — digitised from manual image*:
 
 ```markdown
-## 8. Input-vs-output transfer curves
+## 9. Input-vs-output transfer curves
 
 Status: **approximate** — curves digitised from the December 1959 service manual image
 (`docs/ManualReferencePlot.png`). Reference data is embedded in `TransferCurveTests.cpp`
