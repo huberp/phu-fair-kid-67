@@ -26,6 +26,11 @@ void VariableMuPushPullStage::setCv(float cv) noexcept
     stageB_.setCv(cv);
 }
 
+float VariableMuPushPullStage::cv() const noexcept
+{
+    return stageA_.cv();
+}
+
 void VariableMuPushPullStage::setNRConfig(Analog::Nonlinear::NRConfig cfg) noexcept
 {
     stageA_.setNRConfig(cfg);

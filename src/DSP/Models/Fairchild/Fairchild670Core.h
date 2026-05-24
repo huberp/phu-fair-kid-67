@@ -37,6 +37,16 @@ enum class LinkedEnvelopeStrategy {
 struct Fairchild670Meters {
     float cvL      = 0.0f; ///< Control voltage applied to the L stage (V).
     float cvR      = 0.0f; ///< Control voltage applied to the R stage (V).
+    float rawCvL   = 0.0f; ///< Raw detector CV before threshold subtraction, L (V).
+    float rawCvR   = 0.0f; ///< Raw detector CV before threshold subtraction, R (V).
+    float effectiveCvL = 0.0f; ///< Post-threshold CV before link strategy, L (V).
+    float effectiveCvR = 0.0f; ///< Post-threshold CV before link strategy, R (V).
+    float appliedCvL = 0.0f; ///< CV after sidechain amplifier gain, before stage clamp, L (V).
+    float appliedCvR = 0.0f; ///< CV after sidechain amplifier gain, before stage clamp, R (V).
+    float stageCvL = 0.0f; ///< CV seen by the variable-mu stage after clamp, L (V).
+    float stageCvR = 0.0f; ///< CV seen by the variable-mu stage after clamp, R (V).
+    float cvClampedL = 0.0f; ///< 1.0 when L applied CV exceeded stage clamp, else 0.0.
+    float cvClampedR = 0.0f; ///< 1.0 when R applied CV exceeded stage clamp, else 0.0.
     float inPeakL  = 0.0f; ///< Input peak level, L channel (linear, ±1 full-scale).
     float inPeakR  = 0.0f; ///< Input peak level, R channel (linear, ±1 full-scale).
     float outPeakL = 0.0f; ///< Output peak level, L channel (linear, ±1 full-scale).
@@ -66,6 +76,7 @@ enum class ProcessingQuality {
 ///   P5  Interstage transformer (interstageTransformerCfg)
 ///   P6  Second-order output transformer with biquad filters (transformerCfg)
 ///   P7  Pre-amplifier tube stage coloration (preampCfg)
+///   P8  Sidechain amplifier tube chain (sidechainStage1Cfg – sidechainStage3Cfg)
 struct Fairchild670CoreConfig {
     /// Stereo link mode.
     LinkMode linkMode = LinkMode::Linked;
@@ -90,6 +101,25 @@ struct Fairchild670CoreConfig {
     /// in volts is below this value.  Set to 0.0 for an ideal rectifier.
     float tubeRectifierForwardVoltageV = 0.8f;
 
+    /// Final gain scalar applied to the [P8] sidechain amplifier chain output
+    /// before the 6AL5 detector.  Calibrates the chain’s output level so that
+    /// detector drive and rectified CV sit in the range expected by the AC/DC
+    /// threshold controls.  The three-stage tube chain (P8) provides soft
+    /// saturation at high drive levels; this scalar trims the linear-region
+    /// gain independently of that saturation characteristic.
+    ///
+    /// Default is calibrated against the current transfer-curve references.
+    float sidechainAmplifierGain = 0.7f;
+
+    /// Soft-knee width (V) applied to the sidechain CV before the stage clamp.
+    ///
+    /// A real sidechain amplifier path approaches limiting gradually. This
+    /// smooths the final approach to cvMaxV and avoids a hard digital-style
+    /// corner when the detector drive exceeds the stage ceiling.
+    ///
+    /// 0.0 V disables soft-knee behaviour (hard ceiling).
+    float sidechainCvSoftKneeV = 0.75f;
+
     /// [P5] Interstage transformer coloration (between variable-mu and output stages).
     /// Default: HPF=25 Hz, LPF=22 kHz, drive=1.1 — slightly tighter than the output
     /// transformer, matching the narrower bandwidth typically seen in interstage
@@ -105,7 +135,15 @@ struct Fairchild670CoreConfig {
     /// Defaults to a 12AU7 triode operating at the same B+ and load as the main stage.
     /// This stage always operates at CV=0 (no compression) and adds harmonic coloration.
     Analog::Models::VariableMuStageConfig preampCfg = makePreampCfg();
-
+    /// [P8] Sidechain amplifier chain configurations.
+    /// Three stages model the hardware sidechain amplifier path (T103 → 12AX7 × 2 →
+    /// 12BH7 × 2 → 6973 × 2 → T104) as a 12AX7 + 12AX7 + 12BH7 cascade.
+    /// Each stage runs at CV=0 (fixed gain); the cascade’s nonlinear saturation
+    /// limits detector drive at high input levels, reproducing the soft-onset
+    /// behaviour of the real hardware amplifier chain.
+    Analog::Models::VariableMuStageConfig sidechainStage1Cfg = makeSidechainStage12AX7Cfg();
+    Analog::Models::VariableMuStageConfig sidechainStage2Cfg = makeSidechainStage12AX7Cfg();
+    Analog::Models::VariableMuStageConfig sidechainStage3Cfg = makeSidechainStage12BH7Cfg();
     // ── Default-config factories ───────────────────────────────────────────────
     // (Used by the member default initialisers above; public so callers can
     //  build a known-good config as a starting point for customisation.)
@@ -114,7 +152,12 @@ struct Fairchild670CoreConfig {
     static Analog::Models::VariableMuStageConfig makeStageCfg6386()
     {
         Analog::Models::VariableMuStageConfig cfg;
-        cfg.tube = DSP::tubeParams6386();
+        cfg.tube   = DSP::tubeParams6386();
+        // [P4] Raise the CV ceiling from the library default of 6.0 V to 9.0 V so
+        // that the full detector output range can be
+        // applied to the tube.  Without this, the sidechain CV is clipped to 6 V
+        // before the Koren model ever sees it, limiting max GR.
+        cfg.cvMaxV = 9.0;
         return cfg;
     }
 
@@ -145,6 +188,22 @@ struct Fairchild670CoreConfig {
         cfg.tube = Analog::Nonlinear::TubeParams::tubeParams12AU7();
         return cfg;
     }
+
+    /// Build a default 12AX7 sidechain amplifier stage config.
+    static Analog::Models::VariableMuStageConfig makeSidechainStage12AX7Cfg()
+    {
+        Analog::Models::VariableMuStageConfig cfg;
+        cfg.tube = Analog::Nonlinear::TubeParams::tubeParams12AX7();
+        return cfg;
+    }
+
+    /// Build a default 12BH7 sidechain amplifier driver stage config.
+    static Analog::Models::VariableMuStageConfig makeSidechainStage12BH7Cfg()
+    {
+        Analog::Models::VariableMuStageConfig cfg;
+        cfg.tube = Analog::Nonlinear::TubeParams::tubeParams12BH7();
+        return cfg;
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -154,7 +213,8 @@ struct Fairchild670CoreConfig {
 /// Signal flow per stereo sample (hardware-accurate ordering):
 ///   1. Input → input transformer (bandwidth shaping + LF saturation).
 ///   2. Pre-amplifier tube stage (harmonic coloration, CV=0).
-///   3. Sidechain detector reads the pre-amplifier output.
+///   3. [P8] Sidechain path: 12AX7 × 2 → 12BH7 amplifier chain (CV=0) →
+///      gain scalar → 6AL5 soft-rectifier detector → AC/DC threshold logic.
 ///   4. Envelope link logic → per-channel control voltage.
 ///   5. Push-pull variable-mu stage (6386 remote-cutoff model, even-harmonic
 ///      cancellation via differential combination).
@@ -179,20 +239,33 @@ public:
         cfg_.envelopeStrategy = strategy;
     }
 
-    /// Set the compression threshold as a voltage (V) subtracted from the raw
-    /// detector CV before it is applied to the left gain stage.
+    /// Set AC threshold for the left channel as a voltage (V) subtracted from
+    /// the raw detector CV before link logic.
     ///
-    /// effectiveCvL = max(0, detectorCvL − thresholdVoltage)
+    /// effectiveCvL = max(0, detectorCvL − acThresholdVoltageL) + dcBiasVoltageL
     ///
-    /// A value of 10 V places the threshold above any possible full-scale signal
-    /// (no compression); 0 V means the stage always compresses.
-    void setThresholdLeft(float thresholdVoltage) noexcept { thresholdVoltageL_ = thresholdVoltage; }
+    /// 10 V places the AC threshold above any possible full-scale signal
+    /// (no programme-dependent compression contribution); 0 V means maximum
+    /// AC sensitivity.
+    void setAcThresholdLeft(float thresholdVoltage) noexcept { acThresholdVoltageL_ = thresholdVoltage; }
 
-    /// Set the compression threshold as a voltage (V) subtracted from the raw
-    /// detector CV before it is applied to the right gain stage.
-    ///
-    /// effectiveCvR = max(0, detectorCvR − thresholdVoltage)
-    void setThresholdRight(float thresholdVoltage) noexcept { thresholdVoltageR_ = thresholdVoltage; }
+    /// Set AC threshold for the right channel.
+    void setAcThresholdRight(float thresholdVoltage) noexcept { acThresholdVoltageR_ = thresholdVoltage; }
+
+    /// Set DC bias contribution for the left channel (V).
+    /// This models a fixed sidechain offset independent of detector input.
+    void setDcBiasLeft(float dcBiasVoltage) noexcept { dcBiasVoltageL_ = std::max(0.0f, dcBiasVoltage); }
+
+    /// Set DC bias contribution for the right channel (V).
+    void setDcBiasRight(float dcBiasVoltage) noexcept { dcBiasVoltageR_ = std::max(0.0f, dcBiasVoltage); }
+
+    /// Legacy compatibility wrapper. Maps old single-threshold control to the
+    /// AC threshold path and leaves DC bias unchanged.
+    void setThresholdLeft(float thresholdVoltage) noexcept { setAcThresholdLeft(thresholdVoltage); }
+
+    /// Legacy compatibility wrapper. Maps old single-threshold control to the
+    /// AC threshold path and leaves DC bias unchanged.
+    void setThresholdRight(float thresholdVoltage) noexcept { setAcThresholdRight(thresholdVoltage); }
 
     /// Adjust the NR iteration budget on the variable-mu and pre-amplifier stages.
     ///
@@ -231,8 +304,10 @@ public:
 private:
     Fairchild670CoreConfig cfg_;
     double sampleRate_        = 44100.0;
-    float  thresholdVoltageL_ = 10.0f; ///< Left-channel threshold (V); 10 V = no compression.
-    float  thresholdVoltageR_ = 10.0f; ///< Right-channel threshold (V); 10 V = no compression.
+    float  acThresholdVoltageL_ = 10.0f; ///< Left AC threshold (V); 10 V = no AC-triggered compression.
+    float  acThresholdVoltageR_ = 10.0f; ///< Right AC threshold (V); 10 V = no AC-triggered compression.
+    float  dcBiasVoltageL_ = 0.0f;       ///< Left fixed DC sidechain contribution (V).
+    float  dcBiasVoltageR_ = 0.0f;       ///< Right fixed DC sidechain contribution (V).
 
     // [P7] Pre-amplifier tube stages (12AU7, CV=0 always).
     Analog::Models::VariableMuStage   preampL_;
@@ -253,6 +328,14 @@ private:
     // [P6] Output transformer — 2nd-order biquad model.
     TransformerSecondOrder            transformerL_;
     TransformerSecondOrder            transformerR_;
+
+    // [P8] Sidechain amplifier chain (12AX7 × 2 → 12BH7; CV=0 always).
+    Analog::Models::VariableMuStage   scAmp1L_;
+    Analog::Models::VariableMuStage   scAmp1R_;
+    Analog::Models::VariableMuStage   scAmp2L_;
+    Analog::Models::VariableMuStage   scAmp2R_;
+    Analog::Models::VariableMuStage   scAmp3L_;
+    Analog::Models::VariableMuStage   scAmp3R_;
 
     // [P4] Sidechain soft-onset rectifiers (6AL5 forward-voltage model).
     Sidechain::SoftRectifierDetector  detectorL_;

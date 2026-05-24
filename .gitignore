@@ -21,3 +21,9 @@ Thumbs.db
 # Artifacts
 dist/
 *.zip
+tmp/
+calibration/outputs/
+calibration/plots/
+
+#Python Environment
+.venv/

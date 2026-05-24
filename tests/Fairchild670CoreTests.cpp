@@ -109,6 +109,10 @@ TEST_CASE("Fairchild670Core: independent mode — R CV is unaffected by loud L",
 
     Models::Fairchild670Core core(cfg);
     core.prepare(sr);
+    // Threshold=0 V so effectiveCv == rawCv, allowing this test to verify that
+    // the sidechain detector actually responds to the input signal.
+    core.setThresholdLeft(0.0f);
+    core.setThresholdRight(0.0f);
 
     // Drive L hard; feed R silence to charge L's detector only.
     float outL, outR;
@@ -136,6 +140,10 @@ TEST_CASE("Fairchild670Core: independent mode — L CV is unaffected by loud R",
 
     Models::Fairchild670Core core(cfg);
     core.prepare(sr);
+    // Threshold=0 V so effectiveCv == rawCv, allowing this test to verify that
+    // the sidechain detector actually responds to the input signal.
+    core.setThresholdLeft(0.0f);
+    core.setThresholdRight(0.0f);
 
     float outL, outR;
     for (int i = 0; i < 8000; ++i)
@@ -165,6 +173,10 @@ TEST_CASE("Fairchild670Core: linked/max — hot L channel compresses R similarly
     cfg.envelopeStrategy = Models::LinkedEnvelopeStrategy::Max;
 
     auto core = makeWarmedCore(cfg, sr);
+    // Threshold=0 V so effectiveCv == rawCv, allowing this test to verify that
+    // the linked CV reaches both channels when L is driven.
+    core.setThresholdLeft(0.0f);
+    core.setThresholdRight(0.0f);
 
     // Charge the L detector heavily.
     float outL, outR;
