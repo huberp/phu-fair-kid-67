@@ -257,8 +257,8 @@ void Fairchild670Core::processStereo(float inL, float inR,
     outR = transformerR_.processSample(interstageR);
 
     // 7. Update meter accumulators.
-    meters_.cvL = finalCvL;
-    meters_.cvR = finalCvR;
+    meters_.cvL = rawCvL;
+    meters_.cvR = rawCvR;
     meters_.rawCvL = rawCvL;
     meters_.rawCvR = rawCvR;
     meters_.effectiveCvL = effectiveCvL;
