@@ -9,8 +9,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(PHU_BUILD_PLUGIN "Build the audio plugin (requires JUCE and platform audio SDKs)" ON)
+option(PHU_BUILD_TESTS "Build test executables" OFF)
 
-enable_testing()
+if(PHU_BUILD_TESTS)
+  enable_testing()
+endif()
 
 set(PHU_AUDIO_LIB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/phu-audio-lib" CACHE PATH "Path to PhuAudioLib root")
 
@@ -101,7 +104,7 @@ endif()
 
 # Build DSP tests and calibration tool whenever PhuAnalogLib is available (no JUCE dependency).
 # When PHU_BUILD_PLUGIN is ON, tools/ is already added inside that branch above.
-if(TARGET PhuAnalogLib)
+if(TARGET PhuAnalogLib AND PHU_BUILD_TESTS)
     add_subdirectory(tests)
     if(NOT PHU_BUILD_PLUGIN)
         add_subdirectory(tools)
