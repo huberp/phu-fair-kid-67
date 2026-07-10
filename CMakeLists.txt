@@ -51,8 +51,8 @@ if(PHU_BUILD_PLUGIN)
     add_library(PhuFairKidLib INTERFACE)
     target_link_libraries(PhuFairKidLib INTERFACE
         PhuAudioLib
-        PhuNetworkLib
-        PhuGLUtils
+        # PhuNetworkLib
+        # PhuGLUtils
         PhuAnalogLib
     )
 
