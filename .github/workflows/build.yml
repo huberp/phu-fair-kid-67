@@ -28,11 +28,14 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: phu-fair-kid-67-plugin
-          path: build/src/phu-fair-kid-67_artefacts/Release/VST3
-      - name: Validate Plugin
-        uses: ./.github/workflows/validate-plugin.yml
-        with:
-          plugin-path: build/src/phu-fair-kid-67_artefacts/Release/VST3
+          path: build/windows-x64-vst3-release/src/phu-fair-kid-67_artefacts/Release/VST3
+
+  validate-plugin:
+    needs: build-windows
+    uses: ./.github/workflows/validate-plugin.yml
+    with:
+      plugin-path: ./downloaded-plugin
+      artifact-name: phu-fair-kid-67-plugin
 
   build-linux:
     runs-on: ubuntu-latest
