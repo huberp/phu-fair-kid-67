@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.2.0)
+cmake_minimum_required(VERSION 3.31.6)
 project(phu-fair-kid-67 VERSION 0.1.0 LANGUAGES C CXX)
 
 if(APPLE)
