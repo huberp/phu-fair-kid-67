@@ -62,7 +62,7 @@ jobs:
             --build-dir  build/dsp/tools
             --output-dir calibration-sweep-results
             --parallelism "${{ inputs.parallelism }}"
-          )
+                                  )
           if [[ "${{ inputs.quick }}" == "true" ]]; then
             SWEEP_ARGS+=(--quick)
           fi
@@ -88,15 +88,15 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [[ -f "$SUMMARY_FILE" ]]; then
             PASSING=$(python3 - "$SUMMARY_FILE" << 'PYEOF'
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-    print(d.get("passingCount", 0))
-except Exception as exc:
-    print(f"error: {exc}", file=sys.stderr)
-    print("?")
-PYEOF
-)
+            import json, sys
+            try:
+                d = json.load(open(sys.argv[1]))
+                print(d.get("passingCount", 0))
+            except Exception as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                print("?")
+            PYEOF
+            )
             echo "Passing candidates: **$PASSING**" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo '```json' >> "$GITHUB_STEP_SUMMARY"
