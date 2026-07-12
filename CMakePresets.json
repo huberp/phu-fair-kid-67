@@ -2,8 +2,8 @@
   "version": 5,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 23,
-    "patch": 0
+    "minor": 31,
+    "patch": 6
   },
   "configurePresets": [
     {
@@ -23,7 +23,7 @@
       "inherits": ["base"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "PHU_BUILD_TESTS": "ON"
+        "BUILD_TESTING": "ON"
       }
     },
     {

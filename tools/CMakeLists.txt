@@ -7,7 +7,7 @@ target_include_directories(phu_calibrate PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../phu-audio-lib
 )
 
-target_compile_features(phu_calibrate PRIVATE cxx_std_17)
+target_compile_features(phu_calibrate PRIVATE cxx_std_20)
 
 target_compile_definitions(phu_calibrate PRIVATE _USE_MATH_DEFINES)
 
