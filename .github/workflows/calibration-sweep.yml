@@ -72,7 +72,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload sweep results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: calibration-sweep-results-${{ github.run_number }}

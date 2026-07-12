@@ -25,7 +25,7 @@ jobs:
       - name: Build
         run: cmake --build --preset windows-x64-vst3-release-build
       - name: Upload Plugin Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: phu-fair-kid-67-plugin
           path: build/src/phu-fair-kid-67_artefacts/Release/VST3
