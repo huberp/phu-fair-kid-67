@@ -69,6 +69,9 @@ output.  Output CSV columns:
 input_dbfs, output_dbfs, gain_reduction_db, cv_volts
 ```
 
+Newer calibration runs can also emit extended diagnostics (`raw/effective/applied/stage` CV and clamp ratio),
+plus sweep direction tags for up/down hysteresis checks.
+
 ### Examples
 
 ```bash
@@ -76,12 +79,19 @@ input_dbfs, output_dbfs, gain_reduction_db, cv_volts
 ./build/tools/phu_calibrate --measure-transfer --position 1 > /tmp/p1_transfer.csv
 
 # Position 1, threshold = 3 V (compress only above a moderate level):
-./build/tools/phu_calibrate --measure-transfer --position 1 --threshold 3.0 \
+./build/tools/phu_calibrate --measure-transfer --position 1 --threshold-ac 3.0 --threshold-dc 0.2 \
     > /tmp/p1_transfer_thr3.csv
 
 # Combine timing and transfer in one run:
 ./build/tools/phu_calibrate --measure-timing --measure-transfer --position 1 \
     --output /tmp/p1_all.csv
+
+# High-drive + path-check sweep (up and down):
+./build/tools/phu_calibrate --measure-transfer --position 1 --threshold-ac 0.5 --threshold-dc 1.8 \
+    --transfer-min-dbfs -60 --transfer-max-dbfs 6 --transfer-step-db 3 \
+    --transfer-sweep-mode both --transfer-measure-samples 4096 \
+    --transfer-settle-multiplier 20 \
+    --output /tmp/p1_transfer_hysteresis.csv
 ```
 
 > **Note on settling time:** For positions with long release time constants
@@ -119,15 +129,26 @@ dual-slope shape.
 
 ```bash
 python3 scripts/plot_transfer.py /tmp/p1_transfer.csv
-# With manual-derived reference overlay:
+# Save to PNG:
 python3 scripts/plot_transfer.py /tmp/p1_transfer.csv \
-    --reference tests/transfer_curve_reference.csv \
     --output /tmp/p1_transfer.png
+
+# Overlay all 5 Fairchild manual reference curves (dBm, hand-digitized):
+python3 scripts/plot_transfer.py \
+    calibration/reference/Transfere-Curve-1.csv \
+    calibration/reference/Transfere-Curve-2.csv \
+    calibration/reference/Transfere-Curve-3.csv \
+    calibration/reference/Transfere-Curve-4.csv \
+    calibration/reference/Transfere-Curve-5.csv \
+    --output calibration/plots/curve_1_5_transfer.png
 ```
 
-The plot shows:
-- **Left panel**: input dBFS vs output dBFS (unity gain diagonal for reference).
-- **Right panel**: gain reduction (dB) vs input dBFS.
+> Reference CSVs are in **dBm** (European semicolon/decimal-comma format).
+> Level conversion: `dBm = dBFS + 19.2`.
+> The plot script auto-detects the format and sets axes accordingly.
+
+For a quantitative comparison of a plugin sweep against a single reference curve,
+use `calibration/scripts/compare_to_reference.py` instead (see [Calibration-Plan.md](../calibration/Calibration-Plan.md)).
 
 ---
 
@@ -136,10 +157,20 @@ The plot shows:
 | Setting | Value | Reason |
 |---------|-------|--------|
 | Sample rate | 44100 Hz | Matches default plugin rate; all reference values are at this rate |
-| Threshold | 0 V | Measures the full compressor curve from silence upwards |
+| Threshold AC | curve-specific | See `calibration/Calibration-Plan.md` for per-curve estimates |
+| Threshold DC | curve-specific | Use `--threshold-dc 0.0` as baseline (Curve-1 linear check) |
 | Position | 1 (for transfer) | Fastest settling; good for curve shape validation |
 | Position | 5 or 6 (for auto-release) | Exercises programme-dependent behaviour |
 | `--sample-rate` | 8000 for quick checks | Reduces settling time; not suitable for HF accuracy |
+| `--transfer-min-dbfs` | -35 | Matches calibration sweep range (≈ -15.8 dBm) |
+| `--transfer-max-dbfs` | -5  | Top of sweep range (≈ +14.2 dBm) |
+| `--transfer-step-db` | 0.5 | 61-point sweep balancing speed and resolution |
+
+For a full batch run across all 5 reference curves, use:
+
+```powershell
+pwsh -File calibration/scripts/run_curve_family.ps1
+```
 
 ---
 

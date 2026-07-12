@@ -40,6 +40,10 @@ public:
     /// Set the control voltage applied to both arms.
     void setCv(float cv) noexcept;
 
+    /// Return the currently applied (clamped) CV from one arm.
+    /// Both arms always receive the same CV value.
+    [[nodiscard]] float cv() const noexcept;
+
     /// Override the Newton-Raphson policy for both arms.
     void setNRConfig(Analog::Nonlinear::NRConfig cfg) noexcept;
 

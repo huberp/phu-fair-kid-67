@@ -20,9 +20,9 @@ target_sources(phu-fair-kid-67 PRIVATE
     PluginProcessor.h
     PluginEditor.cpp
     PluginEditor.h
-    DSP/Models/Fairchild/Fairchild670Core.cpp
     DSP/Models/Fairchild/Fairchild670Core.h
-    DSP/Models/Sidechain/TimingNetwork.cpp
+    DSP/Models/Fairchild/VariableMuPushPullStage.h
+    DSP/Models/Transformer/TransformerSecondOrder.h
     DSP/Models/Sidechain/TimingNetwork.h
     DSP/Models/Sidechain/TimingNetworkAdapter.h
     DSP/Utils/OversamplingChain.cpp
