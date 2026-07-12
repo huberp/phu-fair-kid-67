@@ -7,6 +7,11 @@ on:
         description: 'Path to the VST3 plugin directory'
         required: true
         type: string
+      artifact-name:
+        description: 'Artifact name containing the built plugin'
+        required: false
+        type: string
+        default: phu-fair-kid-67-plugin
 
 permissions:
   contents: read
@@ -15,6 +20,12 @@ jobs:
   validate:
     runs-on: windows-latest
     steps:
+      - name: Download Plugin Artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.plugin-path }}
+
       - name: Download pluginval
         shell: pwsh
         run: |
