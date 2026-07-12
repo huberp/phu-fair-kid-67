@@ -1,3 +1,10 @@
+# =============================================================================
+# Top-Level Guard
+# =============================================================================
+if(NOT PROJECT_IS_TOP_LEVEL)
+    return()
+endif()
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -8,139 +15,66 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Catch2)
 
-# Common include directories: project root + phu-audio-lib root (for analog/ headers)
-set(PHU_TEST_INCLUDE_DIRS
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../phu-audio-lib
-)
-
-add_executable(phu_dsp_tests test_dsp.cpp)
-target_include_directories(phu_dsp_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_dsp_tests PRIVATE cxx_std_20)
-target_link_libraries(phu_dsp_tests PRIVATE Catch2::Catch2WithMain)
-
-add_executable(phu_circuit_tests CircuitLinearTests.cpp)
-target_include_directories(phu_circuit_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_circuit_tests PRIVATE cxx_std_20)
-target_link_libraries(phu_circuit_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
-
-add_executable(phu_nr_policy_tests NRPolicyTests.cpp)
-target_include_directories(phu_nr_policy_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_nr_policy_tests PRIVATE cxx_std_20)
-target_link_libraries(phu_nr_policy_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
-
-add_executable(phu_triode_koren_tests TriodeKorenTests.cpp)
-target_include_directories(phu_triode_koren_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_triode_koren_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_triode_koren_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_triode_koren_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
-
-add_executable(phu_tube_stage_tests TubeStageTests.cpp)
-target_include_directories(phu_tube_stage_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_tube_stage_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_tube_stage_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_tube_stage_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
-
-add_executable(phu_detector_tests
-    DetectorTests.cpp
-)
-target_include_directories(phu_detector_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_detector_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_detector_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_detector_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
-
-add_executable(phu_variable_mu_tests VariableMuTests.cpp)
-target_include_directories(phu_variable_mu_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_variable_mu_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_variable_mu_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_variable_mu_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
-
-# —— New component tests ————————————————————————————————————————————————
-
-add_executable(phu_variable_mu_push_pull_tests
-    VariableMuPushPullTests.cpp
-)
-target_include_directories(phu_variable_mu_push_pull_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_variable_mu_push_pull_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_variable_mu_push_pull_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_variable_mu_push_pull_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
-
-add_executable(phu_soft_rectifier_tests
-    SoftRectifierDetectorTests.cpp
-)
-target_include_directories(phu_soft_rectifier_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_soft_rectifier_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_soft_rectifier_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_soft_rectifier_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
-
-add_executable(phu_transformer_second_order_tests
-    TransformerSecondOrderTests.cpp
-)
-target_include_directories(phu_transformer_second_order_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_transformer_second_order_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_transformer_second_order_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_transformer_second_order_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
-
-# —— Fairchild core tests (include new .cpp files) ———————————————————————
-
-add_executable(phu_fairchild670core_tests
-    Fairchild670CoreTests.cpp
-)
-target_include_directories(phu_fairchild670core_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_fairchild670core_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_fairchild670core_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_fairchild670core_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
-
-add_executable(phu_transformer_linear_tests TransformerLinearTests.cpp)
-target_include_directories(phu_transformer_linear_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_transformer_linear_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_transformer_linear_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_transformer_linear_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
-
-add_executable(phu_transformer_coupling_tests TransformerCouplingTests.cpp)
-target_include_directories(phu_transformer_coupling_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_transformer_coupling_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_transformer_coupling_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_transformer_coupling_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
-
-add_executable(phu_timing_conformance_tests
-    TimingConformanceTests.cpp
-)
-target_include_directories(phu_timing_conformance_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_timing_conformance_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_timing_conformance_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_timing_conformance_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
-
-add_executable(phu_transfer_curve_tests
-    TransferCurveTests.cpp
-)
-target_include_directories(phu_transfer_curve_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_transfer_curve_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_transfer_curve_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_transfer_curve_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
-
-add_executable(phu_transfer_family_conformance_tests
-    TransferFamilyConformanceTests.cpp
-)
-target_include_directories(phu_transfer_family_conformance_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
-target_compile_features(phu_transfer_family_conformance_tests PRIVATE cxx_std_20)
-target_compile_definitions(phu_transfer_family_conformance_tests PRIVATE _USE_MATH_DEFINES)
-target_link_libraries(phu_transfer_family_conformance_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
-
+# Include Catch2 discovery module
 include(Catch)
-catch_discover_tests(phu_dsp_tests)
-catch_discover_tests(phu_circuit_tests)
-catch_discover_tests(phu_nr_policy_tests)
-catch_discover_tests(phu_triode_koren_tests)
-catch_discover_tests(phu_tube_stage_tests)
-catch_discover_tests(phu_detector_tests)
-catch_discover_tests(phu_variable_mu_tests)
-catch_discover_tests(phu_variable_mu_push_pull_tests)
-catch_discover_tests(phu_soft_rectifier_tests)
-catch_discover_tests(phu_transformer_second_order_tests)
-catch_discover_tests(phu_fairchild670core_tests)
-catch_discover_tests(phu_transformer_linear_tests)
-catch_discover_tests(phu_transformer_coupling_tests)
-catch_discover_tests(phu_timing_conformance_tests)
-catch_discover_tests(phu_transfer_curve_tests)
-catch_discover_tests(phu_transfer_family_conformance_tests)
+
+# Common include directories: project root + phu-audio-lib root (for analog/ headers)
+# Using CMAKE_SOURCE_DIR for consistency
+set(PHU_TEST_INCLUDE_DIRS
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/phu-audio-lib
+)
+
+# Helper function to create test targets with consistent settings
+function(add_phu_test TEST_NAME SOURCE_FILE)
+    add_executable(${TEST_NAME}_tests ${SOURCE_FILE})
+    target_include_directories(${TEST_NAME}_tests PRIVATE ${PHU_TEST_INCLUDE_DIRS})
+    target_compile_features(${TEST_NAME}_tests PRIVATE cxx_std_20)
+    target_compile_definitions(${TEST_NAME}_tests PRIVATE _USE_MATH_DEFINES)
+    
+    # Link appropriate libraries based on test requirements
+    if(TEST_NAME MATCHES "phu_dsp|phu_circuit|phu_nr_policy|phu_triode_koren|phu_tube_stage|phu_transformer_linear|phu_transformer_coupling")
+        target_link_libraries(${TEST_NAME}_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
+    elseif(TEST_NAME MATCHES "phu_detector|phu_variable_mu_push_pull|phu_soft_rectifier|phu_transformer_second_order|phu_fairchild670core|phu_timing_conformance|phu_transfer_curve|phu_transfer_family_conformance")
+        target_link_libraries(${TEST_NAME}_tests PRIVATE Catch2::Catch2WithMain PhuFairchildModels)
+    elseif(TEST_NAME MATCHES "phu_variable_mu")
+        target_link_libraries(${TEST_NAME}_tests PRIVATE Catch2::Catch2WithMain PhuAnalogLib)
+    else()
+        target_link_libraries(${TEST_NAME}_tests PRIVATE Catch2::Catch2WithMain)
+    endif()
+    
+    # Discover tests using Catch2
+    catch_discover_tests(${TEST_NAME}_tests)
+endfunction()
+
+# ---- DSP Tests ----
+add_phu_test(phu_dsp test_dsp.cpp)
+
+# ---- Circuit Tests ----
+add_phu_test(phu_circuit CircuitLinearTests.cpp)
+add_phu_test(phu_nr_policy NRPolicyTests.cpp)
+add_phu_test(phu_triode_koren TriodeKorenTests.cpp)
+add_phu_test(phu_tube_stage TubeStageTests.cpp)
+
+# ---- Detector Tests ----
+add_phu_test(phu_detector DetectorTests.cpp)
+
+# ---- Variable Mu Tests ----
+add_phu_test(phu_variable_mu VariableMuTests.cpp)
+
+# ---- New component tests ----
+add_phu_test(phu_variable_mu_push_pull VariableMuPushPullTests.cpp)
+add_phu_test(phu_soft_rectifier SoftRectifierDetectorTests.cpp)
+add_phu_test(phu_transformer_second_order TransformerSecondOrderTests.cpp)
+
+# ---- Fairchild core tests (include new .cpp files) ----
+add_phu_test(phu_fairchild670core Fairchild670CoreTests.cpp)
+
+# ---- Transformer Tests ----
+add_phu_test(phu_transformer_linear TransformerLinearTests.cpp)
+add_phu_test(phu_transformer_coupling TransformerCouplingTests.cpp)
+
+# ---- Timing and Transfer Tests ----
+add_phu_test(phu_timing_conformance TimingConformanceTests.cpp)
+add_phu_test(phu_transfer_curve TransferCurveTests.cpp)
+add_phu_test(phu_transfer_family_conformance TransferFamilyConformanceTests.cpp)

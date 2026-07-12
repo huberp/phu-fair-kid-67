@@ -1,4 +1,11 @@
-if(APPLE)
+# =============================================================================
+# Top-Level Guard
+# =============================================================================
+if(NOT PROJECT_IS_TOP_LEVEL)
+    return()
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(PHU_PLUGIN_FORMATS VST3 AU)
 else()
     set(PHU_PLUGIN_FORMATS VST3)
@@ -53,4 +60,10 @@ target_link_libraries(phu-fair-kid-67
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
+)
+
+# Install rules for the plugin
+install(TARGETS phu-fair-kid-67
+    RUNTIME DESTINATION bin
+    BUNDLE DESTINATION .
 )

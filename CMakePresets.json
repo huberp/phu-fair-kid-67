@@ -63,7 +63,7 @@
       "hidden": true,
       "displayName": "Windows x64",
       "inherits": ["base"],
-      "generator": "Visual Studio 18 2026",
+      "generator": "Visual Studio 17 2022",
       "architecture": {
         "value": "x64"
       }
@@ -73,7 +73,7 @@
       "hidden": true,
       "displayName": "Windows ARM64",
       "inherits": ["base"],
-      "generator": "Visual Studio 18 2026",
+      "generator": "Visual Studio 17 2022",
       "architecture": {
         "value": "ARM64"
       }
@@ -221,6 +221,58 @@
       "displayName": "macOS x86_64 VST3 Debug",
       "inherits": ["os-macos-x64", "build-debug", "format-vst3"],
       "binaryDir": "${sourceDir}/build/macos-x64-vst3-debug"
+    },
+
+    {
+      "name": "test",
+      "displayName": "Test Build (DSP-only, no JUCE)",
+      "inherits": ["base"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_PLUGIN": "OFF",
+        "BUILD_TESTING": "ON"
+      },
+      "generator": "Unix Makefiles"
+    },
+
+    {
+      "name": "test-windows",
+      "displayName": "Test Build Windows",
+      "hidden": true,
+      "inherits": ["test"],
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64"
+      }
+    },
+
+    {
+      "name": "test-macos",
+      "displayName": "Test Build macOS",
+      "hidden": true,
+      "inherits": ["test"],
+      "generator": "Xcode",
+      "cacheVariables": {
+        "CMAKE_OSX_ARCHITECTURES": "arm64"
+      }
+    },
+
+    {
+      "name": "sanitizers",
+      "displayName": "Sanitizers Build (Address + Undefined Behavior)",
+      "inherits": ["test"],
+      "cacheVariables": {
+        "ENABLE_SANITIZERS": "ON"
+      }
+    },
+
+    {
+      "name": "coverage",
+      "displayName": "Coverage Build",
+      "inherits": ["test"],
+      "cacheVariables": {
+        "ENABLE_COVERAGE": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -293,6 +345,42 @@
       "name": "macos-x64-vst3-debug-build",
       "displayName": "Build macOS x86_64 VST3 Debug",
       "configurePreset": "macos-x64-vst3-debug"
+    },
+
+    {
+      "name": "test-build",
+      "displayName": "Build Tests",
+      "configurePreset": "test"
+    },
+
+    {
+      "name": "sanitizers-build",
+      "displayName": "Build with Sanitizers",
+      "configurePreset": "sanitizers"
+    },
+
+    {
+      "name": "coverage-build",
+      "displayName": "Build with Coverage",
+      "configurePreset": "coverage"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test",
+      "displayName": "Run Tests",
+      "configurePreset": "test",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "sanitizers-test",
+      "displayName": "Run Tests with Sanitizers",
+      "configurePreset": "sanitizers",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }
