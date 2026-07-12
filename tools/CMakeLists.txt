@@ -1,14 +1,14 @@
-add_executable(phu_calibrate
-    calibrate.cpp
-)
+add_executable(phu_calibrate calibrate.cpp)
 
 target_include_directories(phu_calibrate PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../phu-audio-lib
 )
 
-target_compile_features(phu_calibrate PRIVATE cxx_std_17)
-
+target_compile_features(phu_calibrate PRIVATE cxx_std_20)
 target_compile_definitions(phu_calibrate PRIVATE _USE_MATH_DEFINES)
 
 target_link_libraries(phu_calibrate PRIVATE PhuFairchildModels)
+
+# IDE organization
+set_target_properties(phu_calibrate PROPERTIES FOLDER "Tools")

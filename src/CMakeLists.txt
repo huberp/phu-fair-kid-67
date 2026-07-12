@@ -1,4 +1,4 @@
-if(APPLE)
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(PHU_PLUGIN_FORMATS VST3 AU)
 else()
     set(PHU_PLUGIN_FORMATS VST3)
@@ -54,3 +54,6 @@ target_link_libraries(phu-fair-kid-67
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
 )
+
+# IDE organization
+set_target_properties(phu-fair-kid-67 PROPERTIES FOLDER "Plugin")
