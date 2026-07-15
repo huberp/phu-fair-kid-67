@@ -110,14 +110,14 @@ cmake --build --preset linux-build
 ```bash
 cmake -B build \
       -DCMAKE_BUILD_TYPE=Release \
-      -DPHU_BUILD_PLUGIN=ON
+      -DBUILD_PLUGIN=ON
 cmake --build build --config Release
 ```
 
 ### Build Without the Plug-in (DSP tests only)
 
 ```bash
-cmake -B build -DPHU_BUILD_PLUGIN=OFF
+cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
 cmake --build build
 ```
 
@@ -127,11 +127,12 @@ This skips JUCE and the audio plug-in target; only the unit-test executables are
 
 ## 4. Running the Tests
 
-After building (with or without the plug-in):
+Build with testing enabled (no JUCE required):
 
 ```bash
-cd build
-ctest --output-on-failure
+cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
 ### Test Suites

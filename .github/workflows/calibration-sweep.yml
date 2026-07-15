@@ -50,7 +50,8 @@ jobs:
       - name: Configure CMake (DSP + tools only, no JUCE)
         run: |
           cmake -B build/dsp \
-            -DPHU_BUILD_PLUGIN=OFF \
+            -DBUILD_PLUGIN=OFF \
+            -DBUILD_TESTING=ON \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build phu_calibrate

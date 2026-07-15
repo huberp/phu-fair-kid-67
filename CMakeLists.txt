@@ -9,6 +9,14 @@ if(NOT PROJECT_IS_TOP_LEVEL)
 endif()
 
 # =============================================================================
+# Global Settings
+# =============================================================================
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+include(cmake/compiler_flags.cmake)
+
+# =============================================================================
 # Platform-Specific Settings
 # =============================================================================
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
@@ -51,46 +59,40 @@ add_library(PhuFairchildModels STATIC
     src/DSP/Models/Transformer/TransformerSecondOrder.cpp
     src/DSP/Models/Sidechain/TimingNetwork.cpp
 )
+
 target_include_directories(PhuFairchildModels PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/phu-audio-lib
 )
+
 target_compile_features(PhuFairchildModels PUBLIC cxx_std_20)
 target_compile_definitions(PhuFairchildModels PRIVATE _USE_MATH_DEFINES)
-set_target_properties(PhuFairchildModels PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# =============================================================================
+# Install Rules
+# =============================================================================
+install(TARGETS PhuFairchildModels
+    EXPORT PhuFairchildModelsTargets
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    INCLUDES DESTINATION include
+)
+
+install(DIRECTORY src/DSP/ DESTINATION include
+    FILES_MATCHING PATTERN "*.h"
+)
 
 # =============================================================================
 # Plugin or Standalone Build
 # =============================================================================
 if(BUILD_PLUGIN)
-    # JUCE
-    # Build JUCE extras/examples OFF for faster builds
-    set(JUCE_BUILD_EXTRAS OFF CACHE BOOL "Build JUCE Extras")
-    set(JUCE_BUILD_EXAMPLES OFF CACHE BOOL "Build JUCE Examples")
-
+    include(cmake/juce_config.cmake)
     add_subdirectory(JUCE)
     add_subdirectory(phu-audio-lib)
 
     # Link JUCE to phu-audio-lib targets
     if(TARGET PhuNetworkLib)
         target_link_libraries(PhuNetworkLib PUBLIC juce::juce_core)
-        target_compile_definitions(PhuNetworkLib PUBLIC
-            JUCE_USE_CURL=0
-            JUCE_WEB_BROWSER=0
-        )
-        set_target_properties(PhuNetworkLib PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    endif()
-
-    if(TARGET PhuGLUtils)
-        target_compile_definitions(PhuGLUtils PUBLIC
-            JUCE_USE_CURL=0
-            JUCE_WEB_BROWSER=0
-        )
-        set_target_properties(PhuGLUtils PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    endif()
-
-    if(TARGET PhuAnalogLib)
-        set_target_properties(PhuAnalogLib PROPERTIES POSITION_INDEPENDENT_CODE ON)
     endif()
 
     # Link PhuFairchildModels to PhuAnalogLib if available

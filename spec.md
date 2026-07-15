@@ -312,7 +312,7 @@ public:
 - `CMakeLists.txt` using `juce_add_plugin()`.
 - `CMakePresets.json` with at minimum `vs2026-x64` (Windows) and `linux-release` (Linux CI) presets.
 - JUCE and `phu-audio-lib` are **git submodules**.
-- Tests enabled via `PHU_BUILD_TESTS=ON` option.
+- Tests enabled via `BUILD_TESTING=ON` option.
 - `PIC` (`POSITION_INDEPENDENT_CODE ON`) set on all static libs that link into the VST3 shared library.
 - `NOMINMAX` defined on MSVC to prevent `min`/`max` macro pollution.
 - Compile definitions: `JUCE_WEB_BROWSER=0`, `JUCE_USE_CURL=0`, `JUCE_VST3_CAN_REPLACE_VST2=0`.

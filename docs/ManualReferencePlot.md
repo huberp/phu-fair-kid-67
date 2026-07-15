@@ -236,7 +236,7 @@ The standalone `phu_calibrate` tool (see `docs/calibration-workflow.md`) sweeps 
 ### 6.1 Build
 
 ```bash
-cmake -B build -DPHU_BUILD_PLUGIN=OFF
+cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
 cmake --build build
 # binary: ./build/tools/phu_calibrate
 ```
