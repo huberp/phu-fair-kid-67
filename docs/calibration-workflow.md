@@ -9,11 +9,11 @@ a DAW.
 ## 1. Build the calibration tool
 
 The tool (`phu_calibrate`) is built alongside the DSP unit tests when
-`PHU_BUILD_PLUGIN=OFF`.  It has no JUCE dependency.
+`BUILD_PLUGIN=OFF` and `BUILD_TESTING=ON`.  It has no JUCE dependency.
 
 ```bash
 # From the repository root:
-cmake -B build -DPHU_BUILD_PLUGIN=OFF
+cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
 cmake --build build
 
 # The binary will be at:
@@ -181,12 +181,12 @@ and do not require the calibration tool binary or any CSV files:
 
 ```bash
 # Build and run all tests:
-cmake -B build -DPHU_BUILD_PLUGIN=OFF
+cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
 cmake --build build
-cd build && ctest --output-on-failure
+ctest --test-dir build --output-on-failure
 
 # Run only the new conformance tests:
-ctest -R "TimingConformance|TransferCurve" --output-on-failure
+ctest --test-dir build -R "TimingConformance|TransferCurve" --output-on-failure
 ```
 
 These tests are deterministic and suitable for CI use.

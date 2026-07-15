@@ -31,10 +31,10 @@ Both modes write CSV to stdout or a file. The tool is fully deterministic and su
 
 ### Building
 
-The tool is built automatically when `PHU_BUILD_PLUGIN=OFF` (alongside the unit tests). No JUCE dependency is required.
+The tool is built automatically when `BUILD_PLUGIN=OFF` and `BUILD_TESTING=ON` (alongside the unit tests). No JUCE dependency is required.
 
 ```bash
-cmake -B build -DPHU_BUILD_PLUGIN=OFF
+cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
 cmake --build build
 # Binary is placed at:
 ./build/tools/phu_calibrate
@@ -281,7 +281,7 @@ The following example generates and inspects the timing and transfer characteris
 
 ```bash
 # 1. Build the tools (no JUCE required):
-cmake -B build -DPHU_BUILD_PLUGIN=OFF
+cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
 cmake --build build
 
 # 2. Measure timing step-response:

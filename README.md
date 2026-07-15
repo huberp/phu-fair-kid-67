@@ -39,9 +39,9 @@ cmake --build --preset linux-build
 **Run the tests:**
 
 ```bash
-cmake -B build -DPHU_BUILD_PLUGIN=OFF
+cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
 cmake --build build
-cd build && ctest --output-on-failure
+ctest --test-dir build --output-on-failure
 ```
 
 ---
