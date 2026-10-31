@@ -11,8 +11,9 @@
 3. [Build Instructions](#3-build-instructions)
 4. [Running the Tests](#4-running-the-tests)
 5. [Project Structure](#5-project-structure)
-6. [Contributing](#6-contributing)
-7. [License](#7-license)
+6. [Continuous Integration & Releases](#6-continuous-integration--releases)
+7. [Contributing](#7-contributing)
+8. [License](#8-license)
 
 ---
 
@@ -195,6 +196,7 @@ phu-fair-kid-67/
 │   ├── fairchild670-spec-traceability.md
 │   ├── performance-analysis.md
 │   └── phu-fair-kid-screenshot.png   # GUI screenshot
+├── .github/workflows/                # CI: build.yml, release.yml, reusable build-<platform>.yml, generate-pdf.yml
 ├── tests/                            # Catch2-based unit tests
 ├── tools/
 │   └── calibrate.cpp                 # Standalone CLI calibration tool (phu_calibrate)
@@ -211,7 +213,34 @@ phu-fair-kid-67/
 
 ---
 
-## 6. Contributing
+## 6. Continuous Integration & Releases
+
+CI lives in `.github/workflows/` and is built from reusable per-platform workflows (`workflow_call`) that use the CMake presets from [Option A](#option-a--using-cmake-presets-recommended):
+
+| Workflow | Purpose |
+|---|---|
+| `build.yml` | Runs on pushes to `main`, on pull requests and on manual dispatch. Calls the reusable workflows below: Windows x64 (with pluginval), Linux x64 and arm64, macOS arm64 and x64 (with pluginval). |
+| `build-windows-vst3.yml` | Reusable. Configure/build with `windows-<arch>-vst3-release` (`arch`: `x64` or `ARM64`), optional pluginval validation, optional packaging and artifact upload. |
+| `build-linux.yml` | Reusable. Configure/build with `linux-<arch>-vst3-release` (`arch`: `x64` or `arm64`), optional pluginval validation (under Xvfb), optional packaging and artifact upload. |
+| `build-macos.yml` | Reusable. Configure/build with `macos-<arch>-release` (VST3 + AU), optional pluginval validation, optional packaging and artifact upload. |
+| `generate-pdf.yml` | Reusable. Converts a Markdown file (the release uses `README.md`) to PDF with Pandoc/XeLaTeX. |
+| `release.yml` | Builds, validates and publishes a GitHub Release (see below). |
+| `calibration-sweep.yml`, `create-sub-issues.yml` | Calibration sweep and issue-maintenance helpers; independent of the build/release chain. |
+
+Each reusable build workflow takes the inputs `arch`, `run-pluginval`, `upload-artifact`, `artifact-name` and `ref-name` (when set, the plug-in is packaged as `PHU-FAIR-KID-67-<os>-<arch>-<version>.zip`) and exposes a `validation-status` output.
+
+### Creating a release
+
+Either:
+
+- **Push a tag** matching `v[0-9]*`, e.g. `git tag v1.2.3 && git push origin v1.2.3`; or
+- **Run the *Release* workflow manually** (Actions → Release → Run workflow) and enter the **required** `tag` input (e.g. `v1.2.3`). The `prepare` job validates the tag and creates and pushes it on the selected branch/commit if it does not exist yet. If the tag already exists it must point at the commit the run was started from (select the tag under "Use workflow from").
+
+The release then builds Windows x64 (pluginval-validated), Windows ARM64 (cross-compiled, not validated), Linux x64 and macOS arm64 / x64 (VST3 + AU), generates `README.pdf`, injects it into every zip and publishes the zips with `softprops/action-gh-release`. Tags containing `-` (e.g. `v1.2.3-rc1`) are published as pre-releases.
+
+---
+
+## 7. Contributing
 
 Contributions are welcome. Please:
 
@@ -223,7 +252,7 @@ Contributions are welcome. Please:
 
 ---
 
-## 7. License
+## 8. License
 
 This project is released under the **MIT License**. See [LICENSE](../LICENSE) for the full text.
 

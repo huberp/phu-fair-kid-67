@@ -804,7 +804,8 @@ Each phase produces a compilable, testable increment. An AI planner should gener
 **Goal:** Green builds on Windows and Linux.
 
 **Deliverables:**
-- GitHub Actions workflow: Windows `windows-x64-vst3-release` + Linux `linux-x64-vst3-release` (+ macOS `macos-*-release`) presets
+- GitHub Actions: `build.yml` calls reusable per-platform workflows (`build-windows-vst3.yml`, `build-linux.yml`, `build-macos.yml`) using the `windows-*-vst3-release`, `linux-*-vst3-release` and `macos-*-release` presets
+- `release.yml` (tag push `v[0-9]*` or manual dispatch with required `tag`) reuses the same workflows and publishes a GitHub Release
 - All test executables run via `ctest`
 - VST3 artifact uploaded per build
 

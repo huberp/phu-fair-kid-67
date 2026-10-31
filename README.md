@@ -12,7 +12,7 @@ Available as **VST3** (Windows, macOS, Linux) and **AU** (macOS).
 | Document | Audience | Contents |
 |---|---|---|
 | [**User Guide**](docs/USER_GUIDE.md) | End users | Installation, parameters & controls, how it works, further reading |
-| [**Building & Contributing**](docs/BUILDING.md) | Developers | Build prerequisites, clone & build instructions, running tests, project structure, contributing guidelines, license |
+| [**Building & Contributing**](docs/BUILDING.md) | Developers | Build prerequisites, clone & build instructions, running tests, project structure, CI & release process (tag push or manual dispatch), contributing guidelines, license |
 | [**Tools & Scripts**](docs/TOOLS_AND_SCRIPTS.md) | Developers | `phu_calibrate` offline calibration tool, `plot_timing.py`, `plot_transfer.py`, `install-linux-deps.sh` |
 
 Additional reference documents in `docs/`:

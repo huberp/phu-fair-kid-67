@@ -54,7 +54,7 @@ Most DAW installations already include this runtime; you only need to install it
 
 ### Installing the Plug-in
 
-1. Download the latest release archive for your platform from the [Releases page](../../releases).
+1. Download the latest release archive for your platform from the [Releases page](../../releases) (`PHU-FAIR-KID-67-<os>-<arch>-<version>.zip`; each archive also contains a `README.pdf`).
 2. **Windows — VST3**  
    Copy `PHU FAIR KID 67.vst3` (the entire folder) to your VST3 plug-in directory, typically:  
    `C:\Program Files\Common Files\VST3\`

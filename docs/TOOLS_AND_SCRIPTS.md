@@ -275,6 +275,8 @@ sudo ./scripts/install-linux-deps.sh
 | GUI (X11) | `libx11-dev`, `libxcomposite-dev`, `libxcursor-dev`, `libxext-dev`, `libxinerama-dev`, `libxrandr-dev`, `libxrender-dev` |
 | OpenGL | `libgl1-mesa-dev` |
 
+The script is also used by the reusable Linux CI workflow (`.github/workflows/build-linux.yml`), which `build.yml` and `release.yml` call. See [BUILDING.md](BUILDING.md#6-continuous-integration--releases) for the CI and release process.
+
 Only the minimal set of dependencies needed for this plug-in is installed. Optional JUCE features (WebKit, curl, LADSPA) are disabled via CMake flags and their packages are not required.
 
 After running the script, build with:
