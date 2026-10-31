@@ -44,18 +44,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: Configure CMake (DSP + tools only, no JUCE)
-        run: |
-          cmake -B build/dsp \
-            -DBUILD_PLUGIN=OFF \
-            -DBUILD_TESTING=ON \
-            -DCMAKE_BUILD_TYPE=Release
+        run: cmake --preset dsp
 
       - name: Build phu_calibrate
-        run: cmake --build build/dsp --target phu_calibrate
+        run: cmake --build --preset dsp-calibrate-build
 
       - name: Run calibration sweep
         run: |

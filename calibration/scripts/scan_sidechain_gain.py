@@ -5,7 +5,7 @@ all compression curves (2-5) with the hardware AC/DC settings.
 
 Usage:
     python calibration/scripts/scan_sidechain_gain.py \
-        --calibrate-bin build/vs2026-x64/tools/Release/phu_calibrate.exe
+        --calibrate-bin build/dsp/tools/Release/phu_calibrate.exe
 """
 import argparse
 import subprocess

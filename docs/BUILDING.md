@@ -22,9 +22,9 @@
 
 | Tool | Minimum Version | Notes |
 |---|---|---|
-| **CMake** | 3.15 | 3.23+ recommended (required for CMake Presets) |
-| **C++ compiler** | C++17 | See platform-specific requirements below |
-| **Git** | Any recent | Needed for submodule checkout |
+| **CMake** | 3.28 | Required for CMake Presets and FetchContent |
+| **C++ compiler** | C++20 | See platform-specific requirements below |
+| **Git** | Any recent | Needed by CMake to fetch JUCE and `phu-audio-lib` |
 
 ### Windows
 
@@ -33,7 +33,7 @@
 | **Visual Studio 2022 or later** | Desktop C++ workload required |
 | **Windows SDK** | Included with Visual Studio |
 
-> The `CMakePresets.json` file includes a `vs2026-x64` preset. If you are on Visual Studio 2022, use `cmake -G "Visual Studio 17 2022"` instead.
+> The Windows presets use the `Visual Studio 18 2026` generator. If you are on Visual Studio 2022, configure with `cmake -G "Visual Studio 17 2022" -B build/vs2022 -DBUILD_PLUGIN=ON` instead.
 
 ### macOS
 
@@ -46,7 +46,7 @@
 
 | Package | Notes |
 |---|---|
-| `build-essential` / `gcc` / `clang` | C++17-capable compiler |
+| `build-essential` / `gcc` / `clang` | C++20-capable compiler (GCC 11 or Clang 14 or newer) |
 | JUCE system dependencies | See [JUCE Linux dependencies](https://github.com/juce-framework/JUCE/blob/master/docs/Linux%20Dependencies.md) — typically: `libasound2-dev libfreetype6-dev libx11-dev libxinerama-dev libxrandr-dev libxcursor-dev mesa-common-dev` |
 
 A convenience script that installs all required Linux packages is available at `scripts/install-linux-deps.sh`:
@@ -59,18 +59,14 @@ sudo ./scripts/install-linux-deps.sh
 
 ## 2. Cloning the Repository
 
-The project uses Git submodules for JUCE and `phu-audio-lib`. Always clone recursively:
+JUCE (8.0.15) and `phu-audio-lib` (branch `main`) are **not** git submodules. CMake downloads them into `JUCE/` and `phu-audio-lib/` (git-ignored) during the first configure, so network access to GitHub is required. See `cmake/PhuDependencies.cmake`.
 
 ```bash
-git clone --recurse-submodules https://github.com/huberp/phu-fair-kid-67.git
+git clone https://github.com/huberp/phu-fair-kid-67.git
 cd phu-fair-kid-67
 ```
 
-If you already cloned without submodules:
-
-```bash
-git submodule update --init --recursive
-```
+To work against a local checkout of the shared library, configure with `-DFETCHCONTENT_SOURCE_DIR_PHU-AUDIO-LIB=<path>`.
 
 ---
 
@@ -78,32 +74,43 @@ git submodule update --init --recursive
 
 ### Option A — Using CMake Presets (recommended)
 
-Presets are defined in `CMakePresets.json`.
+Presets are defined in `CMakePresets.json` and follow `<os>-<arch>-<format>-<config>` (macOS omits the format and builds VST3 + AU). Every configure preset has a matching `-build` preset; list them with `cmake --list-presets=all`.
 
 **Windows (VST3, x64 Release)**
 ```bat
-cmake --preset vs2026-x64
-cmake --build --preset release
+cmake --preset windows-x64-vst3-release
+cmake --build --preset windows-x64-vst3-release-build
 ```
-The VST3 bundle is written to `build/vs2026-x64/src/phu-fair-kid-67_artefacts/Release/VST3/`.
+The VST3 bundle is written to `build/windows-x64-vst3-release/src/phu-fair-kid-67_artefacts/Release/VST3/`. Other Windows presets: `windows-x64-vst3-debug` and `windows-arm64-vst3-release` (each with `-build`).
 
 **macOS Intel (VST3 + AU, Release)**
 ```bash
-cmake --preset macos-x86_64-release
-cmake --build --preset macos-x86_64-build
+cmake --preset macos-x64-release
+cmake --build --preset macos-x64-release-build
 ```
 
 **macOS Apple Silicon (VST3 + AU, Release)**
 ```bash
 cmake --preset macos-arm64-release
-cmake --build --preset macos-arm64-build
+cmake --build --preset macos-arm64-release-build
 ```
+Single-format builds on macOS: `macos-arm64-release-build-vst3` / `macos-arm64-release-build-au` (same configure preset). Debug presets: `macos-x64-debug`, `macos-arm64-debug`.
 
 **Linux (VST3, Release)**
 ```bash
-cmake --preset linux-release
-cmake --build --preset linux-build
+cmake --preset linux-x64-vst3-release
+cmake --build --preset linux-x64-vst3-release-build
 ```
+(`linux-arm64-vst3-release` for ARM64.)
+
+**Optional build options and presets**
+
+| Option / preset | Purpose |
+|---|---|
+| `-DENABLE_STRICT_WARNINGS=ON` | Strict compiler warnings for this project's code (not for fetched dependencies) |
+| `--preset sanitizers` / `--preset sanitizers-build` | DSP-only Debug build with Address + Undefined Behavior sanitizers |
+| `--preset coverage` / `--preset coverage-build` | DSP-only Debug build with coverage instrumentation |
+| `-DPHU_PLUGIN_FORMATS="VST3;AU"` | Plug-in formats to build (default: `VST3;AU` on macOS, `VST3` elsewhere) |
 
 ### Option B — Manual CMake Invocation
 
@@ -117,11 +124,11 @@ cmake --build build --config Release
 ### Build Without the Plug-in (DSP tests only)
 
 ```bash
-cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
-cmake --build build
+cmake --preset dsp
+cmake --build --preset dsp-build
 ```
 
-This skips JUCE and the audio plug-in target; only the unit-test executables are compiled. No platform audio SDKs are required.
+(`dsp-debug` / `dsp-debug-build` for a Debug build.) This builds into `build/dsp/`, skips JUCE (it is not even fetched) and the audio plug-in target; only the DSP libraries, the unit-test executables and `phu_calibrate` are compiled. No platform audio SDKs are required. Equivalent manual invocation: `cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON`.
 
 ---
 
@@ -130,10 +137,12 @@ This skips JUCE and the audio plug-in target; only the unit-test executables are
 Build with testing enabled (no JUCE required):
 
 ```bash
-cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake --preset dsp
+cmake --build --preset dsp-build
+ctest --preset dsp-test
 ```
+
+(Without presets: `cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON`, `cmake --build build`, `ctest --test-dir build --output-on-failure`.)
 
 ### Test Suites
 
@@ -193,8 +202,9 @@ phu-fair-kid-67/
 │   ├── install-linux-deps.sh         # Linux dependency installer
 │   ├── plot_timing.py                # Plot attack/release step-response CSV
 │   └── plot_transfer.py              # Plot transfer-curve CSV
-├── JUCE/                             # Git submodule — JUCE framework
-├── phu-audio-lib/                    # Git submodule — shared audio utilities
+├── JUCE/                             # Fetched by CMake (FetchContent, git-ignored)
+├── phu-audio-lib/                    # Fetched by CMake (FetchContent, git-ignored)
+├── cmake/                            # PhuDependencies, compiler_flags, juce_config
 ├── CMakeLists.txt
 └── CMakePresets.json
 ```
@@ -206,7 +216,7 @@ phu-fair-kid-67/
 Contributions are welcome. Please:
 
 1. Fork the repository and create a feature branch from `main`.
-2. Keep new code in C++17 and follow the style of surrounding files (no raw owning pointers, prefer value types and `unique_ptr`).
+2. Keep new code in C++20 and follow the style of surrounding files (no raw owning pointers, prefer value types and `unique_ptr`).
 3. Add or update unit tests in `tests/` for any DSP logic changes.
 4. Ensure `ctest` passes locally before opening a pull request.
 5. Describe what the change does and, for DSP changes, include a brief note on how you verified correctness (expected level, transfer-function check, etc.).

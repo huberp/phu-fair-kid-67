@@ -5,11 +5,13 @@ if(NOT PROJECT_IS_TOP_LEVEL)
     return()
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    set(PHU_PLUGIN_FORMATS VST3 AU)
+# Semicolon-separated JUCE formats; set by the "formats-*" presets in CMakePresets.json.
+if(APPLE)
+    set(_phu_default_formats "VST3;AU")
 else()
-    set(PHU_PLUGIN_FORMATS VST3)
+    set(_phu_default_formats "VST3")
 endif()
+set(PHU_PLUGIN_FORMATS "${_phu_default_formats}" CACHE STRING "JUCE plugin formats to build (e.g. \"VST3;AU\")")
 
 juce_add_plugin(phu-fair-kid-67
     PLUGIN_MANUFACTURER_CODE Phub

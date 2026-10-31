@@ -30,18 +30,18 @@ Additional reference documents in `docs/`:
 **Build from source** — see [Building & Contributing](docs/BUILDING.md). The short version:
 
 ```bash
-git clone --recurse-submodules https://github.com/huberp/phu-fair-kid-67.git
+git clone https://github.com/huberp/phu-fair-kid-67.git   # JUCE and phu-audio-lib are fetched by CMake
 cd phu-fair-kid-67
-cmake --preset linux-release          # or the preset for your platform
-cmake --build --preset linux-build
+cmake --preset linux-x64-vst3-release          # or the preset for your platform
+cmake --build --preset linux-x64-vst3-release-build
 ```
 
 **Run the tests:**
 
 ```bash
-cmake -B build -DBUILD_PLUGIN=OFF -DBUILD_TESTING=ON
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake --preset dsp
+cmake --build --preset dsp-build
+ctest --preset dsp-test
 ```
 
 ---

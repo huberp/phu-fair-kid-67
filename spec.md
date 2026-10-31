@@ -309,13 +309,14 @@ public:
 
 ### 4.8 Build System
 
-- `CMakeLists.txt` using `juce_add_plugin()`.
-- `CMakePresets.json` with at minimum `vs2026-x64` (Windows) and `linux-release` (Linux CI) presets.
-- JUCE and `phu-audio-lib` are **git submodules**.
+- `CMakeLists.txt` using `juce_add_plugin()`; CMake 3.28, C++20 (`CMAKE_CXX_STANDARD 20`, extensions off).
+- `CMakePresets.json` with `<os>-<arch>-vst3-<config>` presets (`windows-x64-vst3-release`, `linux-x64-vst3-release`, ...) plus `macos-<arch>-<config>` (VST3 + AU), each with a `-build` preset; `dsp` / `dsp-debug` (DSP-only, no JUCE), `sanitizers` and `coverage` presets.
+- JUCE (8.0.15) and `phu-audio-lib` (`main`) are fetched with **FetchContent** (`cmake/PhuDependencies.cmake`) into git-ignored `JUCE/` and `phu-audio-lib/`; there are no git submodules.
 - Tests enabled via `BUILD_TESTING=ON` option.
-- `PIC` (`POSITION_INDEPENDENT_CODE ON`) set on all static libs that link into the VST3 shared library.
-- `NOMINMAX` defined on MSVC to prevent `min`/`max` macro pollution.
-- Compile definitions: `JUCE_WEB_BROWSER=0`, `JUCE_USE_CURL=0`, `JUCE_VST3_CAN_REPLACE_VST2=0`.
+- `PIC` (`CMAKE_POSITION_INDEPENDENT_CODE ON`) is set globally for all static libs that link into the VST3 shared library.
+- `NOMINMAX` defined on Windows (`cmake/juce_config.cmake`) to prevent `min`/`max` macro pollution.
+- Compile definitions (`cmake/juce_config.cmake`): `JUCE_WEB_BROWSER=0`, `JUCE_USE_CURL=0`, `JUCE_VST3_CAN_REPLACE_VST2=0`.
+- Optional `ENABLE_STRICT_WARNINGS`, `ENABLE_SANITIZERS`, `ENABLE_COVERAGE` (`cmake/compiler_flags.cmake`).
 
 ---
 
@@ -323,10 +324,11 @@ public:
 
 ```
 phu-tube-sat/
-├── CMakeLists.txt                  # top-level; JUCE + phu-audio-lib submodules
-├── CMakePresets.json               # vs2026-x64 / linux-release / linux-debug presets
-├── JUCE/                           # git submodule (juce-framework/JUCE)
-├── phu-audio-lib/                  # git submodule (huberp/phu-audio-lib, branch v0.5.0+)
+├── CMakeLists.txt                  # top-level; fetches JUCE + phu-audio-lib via FetchContent
+├── CMakePresets.json               # windows-x64-vst3-release / linux-x64-vst3-release / macos-*-release / dsp / ... presets
+├── cmake/                          # PhuDependencies, compiler_flags, juce_config
+├── JUCE/                           # fetched by CMake (git-ignored)
+├── phu-audio-lib/                  # fetched by CMake (git-ignored, huberp/phu-audio-lib, branch main)
 ├── src/
 │   ├── CMakeLists.txt              # juce_add_plugin(phu-tube-sat)
 │   ├── PluginProcessor.h/.cpp      # JUCE AudioProcessor wrapper
@@ -743,7 +745,7 @@ Each phase produces a compilable, testable increment. An AI planner should gener
 
 **Deliverables:**
 - `CMakeLists.txt`, `CMakePresets.json`
-- Submodule references to JUCE and `phu-audio-lib`
+- FetchContent declarations for JUCE and `phu-audio-lib` (`cmake/PhuDependencies.cmake`)
 - Minimal `PluginProcessor.h/.cpp` (no DSP yet, pass-through)
 - Minimal `PluginEditor.h/.cpp` (blank window)
 - `src/CMakeLists.txt`
@@ -802,7 +804,7 @@ Each phase produces a compilable, testable increment. An AI planner should gener
 **Goal:** Green builds on Windows and Linux.
 
 **Deliverables:**
-- GitHub Actions workflow: Windows `vs2026-x64` + Linux `linux-release`
+- GitHub Actions workflow: Windows `windows-x64-vst3-release` + Linux `linux-x64-vst3-release` (+ macOS `macos-*-release`) presets
 - All test executables run via `ctest`
 - VST3 artifact uploaded per build
 

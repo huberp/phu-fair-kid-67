@@ -1,0 +1,111 @@
+version: "3"
+
+vars:
+  CMAKE_PATH: 'C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin'
+
+tasks:
+  # === Windows ===
+
+  build:windows-x64-vst3-release:
+    desc: Build Windows x64 VST3 Release
+    cmds:
+      - echo {{.USER_WORKING_DIR}}
+      - '"{{.CMAKE_PATH}}/cmake.exe" --preset windows-x64-vst3-release'
+      - '"{{.CMAKE_PATH}}/cmake.exe" --build --preset windows-x64-vst3-release-build'
+    platforms: [windows]
+
+  build:windows-arm64-vst3-release:
+    desc: Build Windows ARM64 VST3 Release
+    cmds:
+      - cmake --preset windows-arm64-vst3-release
+      - cmake --build --preset windows-arm64-vst3-release-build
+    platforms: [windows] 
+
+  build:windows-x64-vst3-debug:
+    desc: Build Windows x64 VST3 Debug
+    env:
+      PATH: '"C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin":{{.PATH}}'
+    cmds:
+      - echo {{.PATH}}
+      - cmake --preset windows-x64-vst3-debug
+      - cmake --build --preset windows-x64-vst3-debug-build
+    platforms: [windows]
+
+  # === Linux ===
+
+  install-linux-deps:
+    desc: Install Linux build dependencies
+    cmds:
+      - sudo bash scripts/install-linux-deps.sh
+    platforms: [linux]
+
+  build:linux-x64-vst3-release:
+    desc: Build Linux x64 VST3 Release
+    deps: [install-linux-deps]
+    cmds:
+      - cmake --preset linux-x64-vst3-release
+      - cmake --build --preset linux-x64-vst3-release-build
+    platforms: [linux]
+
+  build:linux-arm64-vst3-release:
+    desc: Build Linux ARM64 VST3 Release
+    deps: [install-linux-deps]
+    cmds:
+      - cmake --preset linux-arm64-vst3-release
+      - cmake --build --preset linux-arm64-vst3-release-build
+    platforms: [linux]
+
+  # === macOS (VST3 + AU from one configure/build) ===
+
+  build:macos-x64-release:
+    desc: Build macOS x86_64 VST3 + AU Release
+    cmds:
+      - cmake --preset macos-x64-release
+      - cmake --build --preset macos-x64-release-build
+    platforms: [darwin]
+
+  build:macos-arm64-release:
+    desc: Build macOS ARM64 VST3 + AU Release
+    cmds:
+      - cmake --preset macos-arm64-release
+      - cmake --build --preset macos-arm64-release-build
+    platforms: [darwin]
+
+  build:macos-x64-debug:
+    desc: Build macOS x86_64 VST3 + AU Debug
+    cmds:
+      - cmake --preset macos-x64-debug
+      - cmake --build --preset macos-x64-debug-build
+    platforms: [darwin]
+
+  build:macos-arm64-debug:
+    desc: Build macOS ARM64 VST3 + AU Debug
+    cmds:
+      - cmake --preset macos-arm64-debug
+      - cmake --build --preset macos-arm64-debug-build
+    platforms: [darwin]
+
+  # === Composite Tasks ===
+
+  build:all:
+    desc: Build all release configurations
+    deps:
+      - build:windows-x64-vst3-release
+      - build:windows-arm64-vst3-release
+      - build:linux-x64-vst3-release
+      - build:linux-arm64-vst3-release
+      - build:macos-x64-release
+      - build:macos-arm64-release
+
+  build:all-debug:
+    desc: Build all debug configurations
+    deps:
+      - build:windows-x64-vst3-debug
+      - build:macos-x64-debug
+      - build:macos-arm64-debug
+
+  build:all-all:
+    desc: Build all configurations (release + debug)
+    deps:
+      - build:all
+      - build:all-debug

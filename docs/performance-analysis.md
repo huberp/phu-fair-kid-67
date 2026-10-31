@@ -2,7 +2,7 @@
 
 ## 1. Project Type, Stack, and Hot Paths
 
-**Stack:** C++17 audio plugin (JUCE VST3/AU), CMake build, Catch2 unit tests, GitHub Actions CI.
+**Stack:** C++20 audio plugin (JUCE VST3/AU), CMake build, Catch2 unit tests, GitHub Actions CI.
 No web frontend, no database, no network I/O at runtime.
 
 **Entrypoints:**
@@ -280,7 +280,7 @@ on at least one CI platform (Linux is the fastest).
 
 **File:** `CMakePresets.json`
 
-The release presets (`linux-release`, `macos-*-release`) set only `CMAKE_BUILD_TYPE=Release`.
+The release presets (`linux-x64-vst3-release`, `macos-*-release`) set only `CMAKE_BUILD_TYPE=Release`.
 No `-flto` (Link-Time Optimization) or explicit vectorization hints are configured. Given the
 tight inner loop (NR iterations on 2-element vectors), LTO can inline across translation unit
 boundaries, and platform-appropriate SIMD flags enable wider SIMD operations.
