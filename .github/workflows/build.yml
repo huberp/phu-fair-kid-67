@@ -6,67 +6,32 @@ on:
       - main
   pull_request:
   workflow_dispatch:
-  workflow_call:
-
-permissions:
-  contents: read
-  actions: read
 
 jobs:
   build-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Configure CMake
-        run: cmake --preset windows-x64-vst3-release
-      - name: Build
-        run: cmake --build --preset windows-x64-vst3-release-build
-      - name: Upload Plugin Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: phu-fair-kid-67-plugin
-          path: build/windows-x64-vst3-release/src/phu-fair-kid-67_artefacts/Release/VST3
-
-  validate-plugin:
-    needs: build-windows
-    uses: ./.github/workflows/validate-plugin.yml
+    uses: ./.github/workflows/build-windows-vst3.yml
     with:
-      plugin-path: ./downloaded-plugin
-      artifact-name: phu-fair-kid-67-plugin
+      arch: x64
+      run-pluginval: true
 
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Install Dependencies
-        run: sudo bash scripts/install-linux-deps.sh
-      - name: Configure CMake
-        run: cmake --preset linux-x64-vst3-release
-      - name: Build
-        run: cmake --build --preset linux-x64-vst3-release-build
+  build-linux-x64:
+    uses: ./.github/workflows/build-linux.yml
+    with:
+      arch: x64
 
-  build-macos-intel:
-    runs-on: macos-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Configure CMake (x86_64)
-        run: cmake --preset macos-x64-release
-      - name: Build (x86_64)
-        run: cmake --build --preset macos-x64-release-build
+  build-linux-arm64:
+    uses: ./.github/workflows/build-linux.yml
+    with:
+      arch: arm64
 
   build-macos-arm64:
-    runs-on: macos-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Configure CMake (arm64)
-        run: cmake --preset macos-arm64-release
-      - name: Build (arm64)
-        run: cmake --build --preset macos-arm64-release-build
+    uses: ./.github/workflows/build-macos.yml
+    with:
+      arch: arm64
+      run-pluginval: true
+
+  build-macos-x64:
+    uses: ./.github/workflows/build-macos.yml
+    with:
+      arch: x64
+      run-pluginval: true
