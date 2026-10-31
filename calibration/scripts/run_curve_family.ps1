@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Run phu_calibrate for all 5 Fairchild reference curves and compare each to
     its hand-digitized ground-truth reference.
@@ -12,7 +12,7 @@
 
 .PARAMETER CalibrateBin
     Path to the phu_calibrate executable.
-    Defaults to: build\vs2026-x64\tools\Release\phu_calibrate.exe
+    Defaults to: build\dsp\tools\Release\phu_calibrate.exe
 
 .PARAMETER OutputDir
     Directory to write all outputs.
@@ -33,7 +33,7 @@
 
 [CmdletBinding()]
 param(
-    [string] $CalibrateBin = "build\vs2026-x64\tools\Release\phu_calibrate.exe",
+    [string] $CalibrateBin = "build\dsp\tools\Release\phu_calibrate.exe",
     [string] $OutputDir    = "calibration\outputs\curve_family",
     [double] $KOffset      = 19.2
 )

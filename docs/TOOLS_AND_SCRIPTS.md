@@ -40,6 +40,17 @@ cmake --build build
 ./build/tools/phu_calibrate
 ```
 
+Alternatively use the DSP-only preset (same configuration, build directory `build/dsp`; this is what the Calibration Sweep workflow uses):
+
+```bash
+cmake --preset dsp
+cmake --build --preset dsp-calibrate-build
+# Binary is placed at (Linux/macOS):
+./build/dsp/tools/phu_calibrate
+# Binary is placed at (Windows/Visual Studio):
+build\dsp\tools\Release\phu_calibrate.exe
+```
+
 ### Usage
 
 ```
@@ -269,8 +280,8 @@ Only the minimal set of dependencies needed for this plug-in is installed. Optio
 After running the script, build with:
 
 ```bash
-cmake --preset linux-release
-cmake --build --preset linux-build
+cmake --preset linux-x64-vst3-release
+cmake --build --preset linux-x64-vst3-release-build
 ```
 
 ---

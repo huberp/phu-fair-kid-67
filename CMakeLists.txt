@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.31.6)
+cmake_minimum_required(VERSION 3.28)
 project(phu-fair-kid-67 VERSION 0.1.0 LANGUAGES C CXX)
 
 # =============================================================================
@@ -9,14 +9,6 @@ if(NOT PROJECT_IS_TOP_LEVEL)
 endif()
 
 # =============================================================================
-# Global Settings
-# =============================================================================
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-include(cmake/compiler_flags.cmake)
-
-# =============================================================================
 # Platform-Specific Settings
 # =============================================================================
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
@@ -24,8 +16,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 
 # =============================================================================
-# Standard Settings
+# Global Settings (before fetching, so they also apply to fetched dependencies)
 # =============================================================================
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -38,17 +32,36 @@ if(BUILD_TESTING)
 endif()
 
 # =============================================================================
-# Dependency Validation
+# Dependencies (fetched with FetchContent, see cmake/PhuDependencies.cmake)
 # =============================================================================
-# Validate submodules exist before any logic
-foreach(SUBMODULE IN ITEMS JUCE phu-audio-lib)
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${SUBMODULE}/CMakeLists.txt")
-        message(FATAL_ERROR
-            "${SUBMODULE} submodule not initialized. "
-            "Run: git submodule update --init --recursive"
-        )
-    endif()
-endforeach()
+# JUCE feature flags and build options; included before the fetch so that the
+# options and compile definitions also reach JUCE and phu-audio-lib targets.
+# The DSP-only build (BUILD_PLUGIN=OFF) neither fetches nor configures JUCE.
+if(BUILD_PLUGIN)
+    include(cmake/juce_config.cmake)
+endif()
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(PhuDependencies)
+if(BUILD_PLUGIN)
+    phu_fetch_juce(TAG 8.0.15)
+    phu_fetch_audio_lib(TAG main)
+else()
+    # phu-audio-lib's root project also defines the JUCE-dependent targets (PhuGLUtils),
+    # so the DSP-only build adds only its analog/ subdirectory (PhuAnalogLib).
+    FetchContent_Declare(
+        phu-audio-lib
+        GIT_REPOSITORY https://github.com/huberp/phu-audio-lib.git
+        GIT_TAG        main
+        GIT_SHALLOW    ON
+        SOURCE_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/phu-audio-lib
+        SOURCE_SUBDIR  analog
+    )
+    FetchContent_MakeAvailable(phu-audio-lib)
+endif()
+
+# Warnings/sanitizers/coverage; included after the fetch so they only apply to this project
+include(cmake/compiler_flags.cmake)
 
 # =============================================================================
 # PhuFairchildModels Library (defined once, used everywhere)
@@ -86,10 +99,6 @@ install(DIRECTORY src/DSP/ DESTINATION include
 # Plugin or Standalone Build
 # =============================================================================
 if(BUILD_PLUGIN)
-    include(cmake/juce_config.cmake)
-    add_subdirectory(JUCE)
-    add_subdirectory(phu-audio-lib)
-
     # Link JUCE to phu-audio-lib targets
     if(TARGET PhuNetworkLib)
         target_link_libraries(PhuNetworkLib PUBLIC juce::juce_core)
@@ -113,15 +122,11 @@ if(BUILD_PLUGIN)
     add_subdirectory(src)
     add_subdirectory(tools)
 else()
-    # Without JUCE, include only the DSP-only analog library (no network/GL dependencies).
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/phu-audio-lib/analog/CMakeLists.txt")
-        add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/phu-audio-lib/analog")
-    else()
-        message(WARNING "phu-audio-lib analog directory not found; tests will not be built.")
-    endif()
-    
+    # DSP-only: JUCE is not fetched, so PhuNetworkLib/PhuGLUtils are not usable.
     if(TARGET PhuAnalogLib)
         target_link_libraries(PhuFairchildModels PUBLIC PhuAnalogLib)
+    else()
+        message(WARNING "PhuAnalogLib not found in phu-audio-lib; tests will not be built.")
     endif()
 endif()
 

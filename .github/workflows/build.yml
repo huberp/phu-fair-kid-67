@@ -18,8 +18,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
       - name: Configure CMake
         run: cmake --preset windows-x64-vst3-release
       - name: Build
@@ -42,8 +40,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
       - name: Install Dependencies
         run: sudo bash scripts/install-linux-deps.sh
       - name: Configure CMake
@@ -58,12 +54,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
       - name: Configure CMake (x86_64)
-        run: cmake --preset macos-x64-vst3-release
+        run: cmake --preset macos-x64-release
       - name: Build (x86_64)
-        run: cmake --build --preset macos-x64-vst3-release-build
+        run: cmake --build --preset macos-x64-release-build
 
   build-macos-arm64:
     runs-on: macos-latest
@@ -72,9 +66,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
       - name: Configure CMake (arm64)
-        run: cmake --preset macos-arm64-vst3-release
+        run: cmake --preset macos-arm64-release
       - name: Build (arm64)
-        run: cmake --build --preset macos-arm64-vst3-release-build
+        run: cmake --build --preset macos-arm64-release-build

@@ -1,3 +1,7 @@
+# Fetched by CMake (FetchContent)
+JUCE/
+phu-audio-lib/
+
 # Build directories
 build/
 build_*/

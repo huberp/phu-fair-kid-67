@@ -29,7 +29,7 @@ Available as **VST3** (Windows, macOS, Linux) and **AU** (macOS).
 - 🔊 **Optional oversampling** — 1×, 2×, 4×, or 8× with automatic latency compensation keeps aliasing in check even at lower sample rates.
 - 🎨 **Custom dark GUI** — a hand-crafted, 740 × 530 pixel interface organised into logical sections with amber-on-dark labels, rotary knobs, and responsive bar meters.
 - ⚡ **Draft / High quality modes** — trade CPU load against Newton-Raphson solver accuracy at runtime, no plug-in reload required.
-- 🔓 **Fully open source** — MIT-licensed C++17, built on the [JUCE](https://juce.com) framework.
+- 🔓 **Fully open source** — MIT-licensed C++20, built on the [JUCE](https://juce.com) framework.
 
 ---
 

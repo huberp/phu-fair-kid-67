@@ -1,9 +1,18 @@
 {
   "version": 5,
+  "vendor": {
+    "phu/documentation": {
+      "layout": "Configure presets are composed from hidden mixins: os-<platform>-<arch> + build-<type> + formats-<set>. Only the composed (visible) presets are meant to be used directly.",
+      "formats": "PHU_PLUGIN_FORMATS (read by src/CMakeLists.txt) is the JUCE FORMATS list. Windows/Linux use formats-vst3; macOS uses formats-vst3-au, so one configure and one build yields VST3 and AU for that architecture.",
+      "macos": "cmake --preset macos-arm64-release && cmake --build --preset macos-arm64-release-build. Single-format builds: macos-arm64-release-build-vst3 / -au (same configure preset).",
+      "newFormat": "Add a formats-* mixin and inherit it from the desired visible presets.",
+      "dsp": "dsp / dsp-debug / sanitizers / coverage set BUILD_PLUGIN=OFF and BUILD_TESTING=ON (mixin mode-dsp): DSP libraries, unit tests and the phu_calibrate tool only, no JUCE. 'dsp' builds into build/dsp (calibration tooling)."
+    }
+  },
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 31,
-    "patch": 6
+    "minor": 28,
+    "patch": 0
   },
   "configurePresets": [
     {
@@ -126,142 +135,120 @@
     },
 
     {
-      "name": "format-vst3",
+      "name": "formats-vst3",
       "hidden": true,
-      "displayName": "VST3 Format",
+      "displayName": "VST3 only",
+      "description": "Mixin: builds VST3 only (Windows, Linux).",
       "cacheVariables": {
-        "PHU_PLUGIN_FORMAT": "VST3"
+        "PHU_PLUGIN_FORMATS": "VST3"
       }
     },
     {
-      "name": "format-au",
+      "name": "formats-vst3-au",
       "hidden": true,
-      "displayName": "AU Format",
+      "displayName": "VST3 + AU",
+      "description": "Mixin: builds VST3 and AU from one configure/build (macOS only). Shared code is compiled once.",
       "cacheVariables": {
-        "PHU_PLUGIN_FORMAT": "AU"
+        "PHU_PLUGIN_FORMATS": "VST3;AU"
+      }
+    },
+
+    {
+      "name": "mode-dsp",
+      "hidden": true,
+      "displayName": "DSP-only (no JUCE)",
+      "description": "Mixin: BUILD_PLUGIN=OFF + BUILD_TESTING=ON. Builds PhuFairchildModels, PhuAnalogLib, the unit tests and phu_calibrate without JUCE. Uses the default generator of the host.",
+      "inherits": ["base"],
+      "cacheVariables": {
+        "BUILD_PLUGIN": "OFF",
+        "BUILD_TESTING": "ON"
       }
     },
 
     {
       "name": "windows-x64-vst3-release",
       "displayName": "Windows x64 VST3 Release",
-      "inherits": ["os-windows-x64", "build-release-windows", "format-vst3"],
+      "inherits": ["os-windows-x64", "build-release-windows", "formats-vst3"],
       "binaryDir": "${sourceDir}/build/windows-x64-vst3-release"
     },
     {
       "name": "windows-arm64-vst3-release",
       "displayName": "Windows ARM64 VST3 Release",
-      "inherits": ["os-windows-arm64", "build-release-windows", "format-vst3"],
+      "inherits": ["os-windows-arm64", "build-release-windows", "formats-vst3"],
       "binaryDir": "${sourceDir}/build/windows-arm64-vst3-release"
     },
     {
       "name": "windows-x64-vst3-debug",
       "displayName": "Windows x64 VST3 Debug",
-      "inherits": ["os-windows-x64", "build-debug", "format-vst3"],
+      "inherits": ["os-windows-x64", "build-debug", "formats-vst3"],
       "binaryDir": "${sourceDir}/build/windows-x64-vst3-debug"
     },
 
     {
       "name": "linux-x64-vst3-release",
       "displayName": "Linux x64 VST3 Release",
-      "inherits": ["os-linux-x64", "build-release-unix", "format-vst3"],
+      "inherits": ["os-linux-x64", "build-release-unix", "formats-vst3"],
       "binaryDir": "${sourceDir}/build/linux-x64-vst3-release"
     },
     {
       "name": "linux-arm64-vst3-release",
       "displayName": "Linux ARM64 VST3 Release",
-      "inherits": ["os-linux-arm64", "build-release-unix", "format-vst3"],
+      "inherits": ["os-linux-arm64", "build-release-unix", "formats-vst3"],
       "binaryDir": "${sourceDir}/build/linux-arm64-vst3-release"
     },
 
     {
-      "name": "macos-arm64-au-release",
-      "displayName": "macOS ARM64 AU Release",
-      "inherits": ["os-macos-arm64", "build-release-unix", "format-au"],
-      "binaryDir": "${sourceDir}/build/macos-arm64-au-release"
+      "name": "macos-arm64-release",
+      "displayName": "macOS ARM64 VST3+AU Release",
+      "inherits": ["os-macos-arm64", "build-release-unix", "formats-vst3-au"],
+      "binaryDir": "${sourceDir}/build/macos-arm64-release"
     },
     {
-      "name": "macos-arm64-vst3-release",
-      "displayName": "macOS ARM64 VST3 Release",
-      "inherits": ["os-macos-arm64", "build-release-unix", "format-vst3"],
-      "binaryDir": "${sourceDir}/build/macos-arm64-vst3-release"
+      "name": "macos-arm64-debug",
+      "displayName": "macOS ARM64 VST3+AU Debug",
+      "inherits": ["os-macos-arm64", "build-debug", "formats-vst3-au"],
+      "binaryDir": "${sourceDir}/build/macos-arm64-debug"
     },
     {
-      "name": "macos-x64-au-release",
-      "displayName": "macOS x86_64 AU Release",
-      "inherits": ["os-macos-x64", "build-release-unix", "format-au"],
-      "binaryDir": "${sourceDir}/build/macos-x64-au-release"
+      "name": "macos-x64-release",
+      "displayName": "macOS x86_64 VST3+AU Release",
+      "inherits": ["os-macos-x64", "build-release-unix", "formats-vst3-au"],
+      "binaryDir": "${sourceDir}/build/macos-x64-release"
     },
     {
-      "name": "macos-x64-vst3-release",
-      "displayName": "macOS x86_64 VST3 Release",
-      "inherits": ["os-macos-x64", "build-release-unix", "format-vst3"],
-      "binaryDir": "${sourceDir}/build/macos-x64-vst3-release"
-    },
-    {
-      "name": "macos-arm64-au-debug",
-      "displayName": "macOS ARM64 AU Debug",
-      "inherits": ["os-macos-arm64", "build-debug", "format-au"],
-      "binaryDir": "${sourceDir}/build/macos-arm64-au-debug"
-    },
-    {
-      "name": "macos-arm64-vst3-debug",
-      "displayName": "macOS ARM64 VST3 Debug",
-      "inherits": ["os-macos-arm64", "build-debug", "format-vst3"],
-      "binaryDir": "${sourceDir}/build/macos-arm64-vst3-debug"
-    },
-    {
-      "name": "macos-x64-au-debug",
-      "displayName": "macOS x86_64 AU Debug",
-      "inherits": ["os-macos-x64", "build-debug", "format-au"],
-      "binaryDir": "${sourceDir}/build/macos-x64-au-debug"
-    },
-    {
-      "name": "macos-x64-vst3-debug",
-      "displayName": "macOS x86_64 VST3 Debug",
-      "inherits": ["os-macos-x64", "build-debug", "format-vst3"],
-      "binaryDir": "${sourceDir}/build/macos-x64-vst3-debug"
+      "name": "macos-x64-debug",
+      "displayName": "macOS x86_64 VST3+AU Debug",
+      "inherits": ["os-macos-x64", "build-debug", "formats-vst3-au"],
+      "binaryDir": "${sourceDir}/build/macos-x64-debug"
     },
 
     {
-      "name": "test",
-      "displayName": "Test Build (DSP-only, no JUCE)",
-      "inherits": ["base"],
+      "name": "dsp",
+      "displayName": "DSP-only Release (unit tests + phu_calibrate, no JUCE)",
+      "inherits": ["mode-dsp"],
+      "binaryDir": "${sourceDir}/build/dsp",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "BUILD_PLUGIN": "OFF",
-        "BUILD_TESTING": "ON"
-      },
-      "generator": "Unix Makefiles"
-    },
-
-    {
-      "name": "test-windows",
-      "displayName": "Test Build Windows",
-      "hidden": true,
-      "inherits": ["test"],
-      "generator": "Visual Studio 17 2022",
-      "architecture": {
-        "value": "x64"
+        "CMAKE_BUILD_TYPE": "Release"
       }
     },
-
     {
-      "name": "test-macos",
-      "displayName": "Test Build macOS",
-      "hidden": true,
-      "inherits": ["test"],
-      "generator": "Xcode",
+      "name": "dsp-debug",
+      "displayName": "DSP-only Debug (unit tests + phu_calibrate, no JUCE)",
+      "inherits": ["mode-dsp"],
+      "binaryDir": "${sourceDir}/build/dsp-debug",
       "cacheVariables": {
-        "CMAKE_OSX_ARCHITECTURES": "arm64"
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     },
 
     {
       "name": "sanitizers",
       "displayName": "Sanitizers Build (Address + Undefined Behavior)",
-      "inherits": ["test"],
+      "inherits": ["mode-dsp"],
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/sanitizers",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "ENABLE_SANITIZERS": "ON"
       }
     },
@@ -269,8 +256,11 @@
     {
       "name": "coverage",
       "displayName": "Coverage Build",
-      "inherits": ["test"],
+      "inherits": ["mode-dsp"],
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/coverage",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "ENABLE_COVERAGE": "ON"
       }
     }
@@ -307,50 +297,56 @@
     },
 
     {
-      "name": "macos-arm64-au-release-build",
-      "displayName": "Build macOS ARM64 AU Release",
-      "configurePreset": "macos-arm64-au-release"
+      "name": "macos-arm64-release-build",
+      "displayName": "Build macOS ARM64 VST3+AU Release",
+      "configurePreset": "macos-arm64-release"
     },
     {
-      "name": "macos-arm64-vst3-release-build",
-      "displayName": "Build macOS ARM64 VST3 Release",
-      "configurePreset": "macos-arm64-vst3-release"
+      "name": "macos-arm64-debug-build",
+      "displayName": "Build macOS ARM64 VST3+AU Debug",
+      "configurePreset": "macos-arm64-debug"
     },
     {
-      "name": "macos-x64-au-release-build",
-      "displayName": "Build macOS x86_64 AU Release",
-      "configurePreset": "macos-x64-au-release"
+      "name": "macos-x64-release-build",
+      "displayName": "Build macOS x86_64 VST3+AU Release",
+      "configurePreset": "macos-x64-release"
     },
     {
-      "name": "macos-x64-vst3-release-build",
-      "displayName": "Build macOS x86_64 VST3 Release",
-      "configurePreset": "macos-x64-vst3-release"
+      "name": "macos-x64-debug-build",
+      "displayName": "Build macOS x86_64 VST3+AU Debug",
+      "configurePreset": "macos-x64-debug"
     },
     {
-      "name": "macos-arm64-au-debug-build",
-      "displayName": "Build macOS ARM64 AU Debug",
-      "configurePreset": "macos-arm64-au-debug"
+      "name": "macos-arm64-release-build-vst3",
+      "displayName": "Build macOS ARM64 VST3 only (Release)",
+      "configurePreset": "macos-arm64-release",
+      "targets": ["phu-fair-kid-67_VST3"]
     },
     {
-      "name": "macos-arm64-vst3-debug-build",
-      "displayName": "Build macOS ARM64 VST3 Debug",
-      "configurePreset": "macos-arm64-vst3-debug"
-    },
-    {
-      "name": "macos-x64-au-debug-build",
-      "displayName": "Build macOS x86_64 AU Debug",
-      "configurePreset": "macos-x64-au-debug"
-    },
-    {
-      "name": "macos-x64-vst3-debug-build",
-      "displayName": "Build macOS x86_64 VST3 Debug",
-      "configurePreset": "macos-x64-vst3-debug"
+      "name": "macos-arm64-release-build-au",
+      "displayName": "Build macOS ARM64 AU only (Release)",
+      "configurePreset": "macos-arm64-release",
+      "targets": ["phu-fair-kid-67_AU"]
     },
 
     {
-      "name": "test-build",
-      "displayName": "Build Tests",
-      "configurePreset": "test"
+      "name": "dsp-build",
+      "displayName": "Build DSP-only Release",
+      "configurePreset": "dsp",
+      "configuration": "Release"
+    },
+    {
+      "name": "dsp-debug-build",
+      "displayName": "Build DSP-only Debug",
+      "configurePreset": "dsp-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "dsp-calibrate-build",
+      "displayName": "Build phu_calibrate only (DSP-only Release)",
+      "configurePreset": "dsp",
+      "configuration": "Release",
+      "targets": ["phu_calibrate"]
     },
 
     {
@@ -367,9 +363,19 @@
   ],
   "testPresets": [
     {
-      "name": "test",
-      "displayName": "Run Tests",
-      "configurePreset": "test",
+      "name": "dsp-test",
+      "displayName": "Run DSP Tests (Release)",
+      "configurePreset": "dsp",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "dsp-debug-test",
+      "displayName": "Run DSP Tests (Debug)",
+      "configurePreset": "dsp-debug",
+      "configuration": "Debug",
       "output": {
         "outputOnFailure": true
       }

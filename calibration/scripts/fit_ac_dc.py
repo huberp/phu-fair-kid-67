@@ -9,7 +9,7 @@ subprocess for each candidate (AC, DC) pair.
 
 Usage:
     python calibration/scripts/fit_ac_dc.py \\
-        --calibrate-bin  build/vs2026-x64/tools/Release/phu_calibrate.exe \\
+        --calibrate-bin  build/dsp/tools/Release/phu_calibrate.exe \\
         --output-json    calibration/outputs/fitted_parameters.json
 
 Options:
